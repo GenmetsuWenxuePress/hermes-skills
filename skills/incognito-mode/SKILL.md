@@ -185,6 +185,7 @@ Agent **第一条回复**必须执行：
     bash -c 'HISTFILE=/dev/null HISTSIZE=0; if [ ... ]; then ...; fi'
     ```
   > ⚠️ **为什么不能直接前缀？** Bash 的 `VAR=val cmd` 语法仅对简单命令生效。`HISTFILE=/dev/null if ...` 会被解析器视为畸形简单命令，抛出 `syntax error near unexpected token 'then'`。复合语句必须通过 `bash -c` 或子 shell `(export VAR; if ...)` 间接设置环境变量。
+  > ⚠️ **单引号 Python 脚本**：形如 `python3 -c '...'` 的命令使用单引号包裹 Python 代码。**切勿**对此类命令套 `bash -c '...'` 外层——外层单引号会与脚本内单引号冲突，导致字符串提前终结。此类命令是简单命令，直接前缀 `HISTFILE=/dev/null HISTSIZE=0` 即可。
 - **精准服务界定**：
   - 允许连接已存在的服务端口（例如 `127.0.0.1:6379`）。
   - 允许使用嵌入式数据库（SQLite），但创建的 `.db` 文件必须存放在沙箱内或登记至销毁清单。
@@ -224,6 +225,11 @@ Agent **第一条回复**必须执行：
 > 💡 **设计动机**：不信任 Phase 2 的隔离完美无缺——在用户发出结束指令后，主动检查每一条可能的持久化路径，发现痕迹 → 报告 → 清除 → 二次验证，形成完整闭环。
 
 Agent 依次执行以下 10 步流水线：
+
+> 📌 **包装规则速查**：以下命令块中——
+> - 已含 `bash -c` 的 → 直接复制执行（4.5 Step A/B、Phase 5）
+> - 未含 `bash -c` 的 → 简单命令，执行时**直接前缀** `HISTFILE=/dev/null HISTSIZE=0` 即可，**切勿**额外套 `bash -c '...'` 外层（会与脚本内的单引号冲突）
+> - ⚠️ **特别注意 4.3 和 4.8**：Python 脚本使用单引号包裹（`python3 -c '...'`），若被 Agent 误套 `bash -c '...'` 外层会导致引号冲突——外层单引号会提前终结。
 
 #### 4.1 文件系统审计 — 非沙箱写入检测（限制 `-maxdepth 5` 平衡性能与覆盖）
 检查 HOME 及项目目录中本会话期间新增/修改的文件（限制 `-maxdepth 5` 以平衡性能与覆盖；深度写入 `~/.config/<app>/deep/nested/` 可能漏检，属已知权衡）。**Hermes 框架自身的运行文件（state DB、日志、cron output、gbrain、openclaw 等）已预排除，避免噪音命中：**
@@ -305,8 +311,10 @@ else:
     print("✅ Memory 文件未变更，未检测到意外持久化写入")
 ' 2>/dev/null || echo "⚠️ Memory 审计脚本执行失败，请手动检查 ~/.hermes/memories/"
 ```
+
+> ⚠️ **包装规则**：此 Python 脚本使用单引号包裹（`python3 -c '...'`）。执行时**直接前缀** `HISTFILE=/dev/null HISTSIZE=0` 即可，**切勿**套 `bash -c '...'` 外层——外层单引号会与脚本内单引号冲突导致语法错误。
+
 - `TRY`: 比对 SHA-256 哈希，检测 Markdown 文件变更。
-- `FALLBACK`: 若脚本失败，标记 ⚠️ 提示手动检查。
 - `REPORT` & `CONTINUE`
 
 #### 4.4 Skill / Cron 审计（限制 `-maxdepth 5` 平衡性能与覆盖）
@@ -461,9 +469,11 @@ if tmp_dir and os.path.exists(tmp_dir) and tmp_dir.startswith("/tmp/hermes-incog
         print(f"⚠️ 沙箱目录删除失败: {e}")
 ' 2>/dev/null || (find "$INCOGNITO_TMP_DIR" -type f -exec shred -u -n 1 {} + 2>/dev/null; rm -rf "$INCOGNITO_TMP_DIR")
 ```
+
+> ⚠️ **包装规则**：此 Python 脚本使用单引号包裹（`python3 -c '...'`）。执行时**直接前缀** `HISTFILE=/dev/null HISTSIZE=0` 即可，**切勿**套 `bash -c '...'` 外层——外层单引号会与脚本内单引号冲突导致语法错误。
+
 - `TRY`: Python `os.urandom` 覆写 + `rmdir`。
 - `FALLBACK`: Shell `find -type f -exec shred` 降级擦除 + `rm -rf`。
-- `REPORT` & `CONTINUE`
 
 #### 4.9 Session 容器销毁（延后步骤）— 防线 2 最后一击
 
