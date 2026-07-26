@@ -9,14 +9,14 @@
 A skill for [Hermes Agent](https://hermes-agent.nousresearch.com/) that ensures complete session privacy through a **four-layer defense-in-depth architecture**:
 
 1. **Skill Policy** — Capability matrix blocking persistent writes (memory, skills, cron, config)
-2. **Runtime Guardrails** — Shell history suppression, sandboxed filesystem, PID-locked temp dirs
+2. **Runtime Guardrails** — Shell history suppression, compound command wrapping (`bash -c`), timestamp TTL sandbox
 3. **Framework Support** — Session-level isolation markers, subagent inheritance protocol
 4. **Post-Session Audit** — 10-step reverse audit pipeline with secure wipe (Python `os.urandom` overwrite → `fsync` → `truncate` → `unlink`)
 
 ## Architecture
 
 ```
-Phase 1: Idempotency check + PID-lock sandbox init + orphan cleanup
+Phase 1: Idempotency check + timestamp TTL sandbox init + orphan cleanup
    ↓
 Phase 2: Isolated execution (pre-hoc defense)
    ↓
@@ -31,8 +31,8 @@ Phase 5: Audit report + final receipt
 
 | Layer | Protection |
 |-------|-----------|
-| Filesystem | All writes confined to PID-locked sandbox; non-sandbox writes detected and wiped |
-| Shell History | Every command prefixed with `HISTFILE=/dev/null HISTSIZE=0` |
+| Filesystem | All writes confined to timestamp TTL sandbox; non-sandbox writes detected and wiped |
+| Shell History | Every command wrapped with `HISTFILE=/dev/null HISTSIZE=0`; compound statements (`if`/`for`/`while`) via `bash -c '...'` |
 | Memory | SHA-256 hash diffing against baseline snapshot |
 | Skills/Cron | Detects unauthorized skill/cron creation during session |
 | Processes | Snapshot diffing to detect orphan processes |
@@ -100,11 +100,16 @@ Then start a **new session** (`/new`) to ensure the old session container is ful
 ## Changelog
 
 ### v2.3.1
+- **Deduplicated session delete** — removed duplicate Phase 4.9 / Phase 5 `hermes sessions delete` instructions
+- **Phase 1 numbering fix** — corrected step numbering after v2.3.0 additions
+- **Generalized pre-exclusion paths** — broader path filtering in filesystem audit
+
+### v2.3.0
 - **Timestamp TTL orphan cleanup** — replaces broken PID lock check (Hermes `terminal()` spawns independent bash, PID dies immediately)
 - **Compound shell command wrapping** — `if`/`for`/`while` wrapped in `bash -c '...'` to avoid syntax errors from direct `HISTFILE=/dev/null` prefix
 - **Security scanner compatibility** — reduced false positives from `skills-guard-v1`
-- **System path noise filtering** — generalized pre-exclusion paths in filesystem audit
-- **Deduplicated session delete** — removed duplicate Phase 4.9 / Phase 5 `hermes sessions delete` instructions
+- **System path noise filtering** — narrowed filesystem audit scope
+- **Quote escaping standardization** — consistent quoting patterns across all shell blocks
 
 ### v2.2.1 (initial release)
 - PID-locked sandbox with Python `os.urandom` secure wipe

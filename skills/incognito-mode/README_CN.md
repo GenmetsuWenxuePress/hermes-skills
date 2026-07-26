@@ -7,14 +7,14 @@
 [Hermes Agent](https://hermes-agent.nousresearch.com/) 的隐私保护 Skill，通过 **四层纵深防御架构** 确保会话完全无痕：
 
 1. **Skill 策略层** — 能力矩阵拦截持久化写入（记忆、技能、定时任务、配置文件）
-2. **Runtime 护栏层** — Shell 历史抑制、沙箱文件系统、PID 锁临时目录
+2. **Runtime 护栏层** — Shell 历史抑制、复合命令包装（`bash -c`）、时间戳 TTL 沙箱
 3. **Framework 支持层** — 会话级隔离标记、子代理传染协议
 4. **事后审计层** — 10 步反向审计流水线 + 安全擦除（Python `os.urandom` 覆写 → `fsync` → `truncate` → `unlink`）
 
 ## 架构
 
 ```
-Phase 1: 嵌套幂等校验 + PID锁沙箱初始化 + 孤儿清理
+Phase 1: 嵌套幂等校验 + 时间戳TTL沙箱初始化 + 孤儿清理
    ↓
 Phase 2: 无痕隔离执行（事前防线）
    ↓
@@ -29,8 +29,8 @@ Phase 5: 审计报告 + 最终确认回执
 
 | 层面 | 保护措施 |
 |------|---------|
-| 文件系统 | 所有写入限定在 PID 锁沙箱内；非沙箱写入事后检测并擦除 |
-| Shell 历史 | 每条命令强制前缀 `HISTFILE=/dev/null HISTSIZE=0` |
+| 文件系统 | 所有写入限定在时间戳 TTL 沙箱内；非沙箱写入事后检测并擦除 |
+| Shell 历史 | 每条命令包装 `HISTFILE=/dev/null HISTSIZE=0`；复合语句（`if`/`for`/`while`）通过 `bash -c '...'` 执行 |
 | Memory 记忆 | SHA-256 哈希比对基线快照，检测意外持久化写入 |
 | Skill/Cron | 检测会话期间未授权的技能/定时任务创建 |
 | 进程 | 快照 diff 检测孤儿进程 |
@@ -124,11 +124,16 @@ Agent 随后会执行：
 ## 更新日志
 
 ### v2.3.1
-- **时间戳 TTL 孤儿清理** — 替代失效的 PID 锁校验（Hermes `terminal()` 每次独立 bash，PID 退出即失效）
+- **Phase 4.9/5 去重** — 删除重复的 `hermes sessions delete` 指令
+- **Phase 1 编号修复** — 修正 v2.3.0 新增步骤导致的编号错位
+- **预排除路径泛化** — 文件系统审计中更广泛的路径过滤
+
+### v2.3.0
+- **时间戳 TTL 孤儿清理** — 替代失效的 PID 锁校验（Hermes `terminal()` 每次独立 bash，PID 退出即失）
 - **复合命令安全包装** — `if`/`for`/`while` 统一用 `bash -c '...'` 包装，避免直接前缀 `HISTFILE=/dev/null` 导致语法错误
 - **安全扫描器兼容** — 降低 `skills-guard-v1` 误报
-- **系统路径噪音过滤** — 文件系统审计中预排除路径泛化
-- **Phase 4.9/5 去重** — 删除重复的 `hermes sessions delete` 指令
+- **系统路径噪音过滤** — 收窄文件系统审计范围
+- **引号逃逸标准化** — 统一所有 Shell 代码块的引号模式
 
 ### v2.2.1（初始发布）
 - PID 锁沙箱 + Python `os.urandom` 安全覆写
