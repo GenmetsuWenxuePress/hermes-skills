@@ -121,10 +121,25 @@ Agent 随后会执行：
 
 **推荐组合**：本 Skill（Agent 层）+ 私有化模型 Ollama（API 层）+ `swapoff -a`（OS 层）= 接近 Tails 级别的隐私保护，同时保持日常开发便利性。
 
+## 更新日志
+
+### v2.3.1
+- **时间戳 TTL 孤儿清理** — 替代失效的 PID 锁校验（Hermes `terminal()` 每次独立 bash，PID 退出即失效）
+- **复合命令安全包装** — `if`/`for`/`while` 统一用 `bash -c '...'` 包装，避免直接前缀 `HISTFILE=/dev/null` 导致语法错误
+- **安全扫描器兼容** — 降低 `skills-guard-v1` 误报
+- **系统路径噪音过滤** — 文件系统审计中预排除路径泛化
+- **Phase 4.9/5 去重** — 删除重复的 `hermes sessions delete` 指令
+
+### v2.2.1（初始发布）
+- PID 锁沙箱 + Python `os.urandom` 安全覆写
+- 10 步反向审计流水线
+- 子代理传染协议
+- 15 分钟 TTL + 用户确认门禁
+
 ## 许可
 
 MIT — 详见 [LICENSE](LICENSE)
 
 ## 作者
 
-幻灭文学出版社 + Hermes（7 轮交叉审计，Python 脚本硬化）
+幻灭文学出版社 + Hermes（9 轮交叉审计，去重修正，编号修复）

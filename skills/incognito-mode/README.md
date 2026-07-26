@@ -97,10 +97,25 @@ The agent will then:
 
 Then start a **new session** (`/new`) to ensure the old session container is fully purged.
 
+## Changelog
+
+### v2.3.1
+- **Timestamp TTL orphan cleanup** — replaces broken PID lock check (Hermes `terminal()` spawns independent bash, PID dies immediately)
+- **Compound shell command wrapping** — `if`/`for`/`while` wrapped in `bash -c '...'` to avoid syntax errors from direct `HISTFILE=/dev/null` prefix
+- **Security scanner compatibility** — reduced false positives from `skills-guard-v1`
+- **System path noise filtering** — generalized pre-exclusion paths in filesystem audit
+- **Deduplicated session delete** — removed duplicate Phase 4.9 / Phase 5 `hermes sessions delete` instructions
+
+### v2.2.1 (initial release)
+- PID-locked sandbox with Python `os.urandom` secure wipe
+- 10-step reverse audit pipeline
+- Subagent inheritance protocol
+- 15min TTL with user confirmation gate
+
 ## License
 
 MIT — see [LICENSE](LICENSE)
 
 ## Author
 
-幻灭文学出版社 + Hermes (7-round cross-audited, Python scripts hardened)
+幻灭文学出版社 + Hermes (9-round cross-audited, Python scripts hardened)
