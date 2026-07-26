@@ -1,4 +1,4 @@
-# 🔒 Hermes Incognito Mode v2.4.1
+# 🔒 Hermes Incognito Mode v2.5.1
 
 [中文版 (Chinese)](README_CN.md) | [English](README.md)
 
@@ -34,6 +34,7 @@ Phase 5: Audit report + final receipt
 | Filesystem | All writes confined to timestamp TTL sandbox; `/tmp/` root scan detects bypasses; non-sandbox writes detected and wiped |
 | Shell History | Every command wrapped with `HISTFILE=/dev/null HISTSIZE=0`; compound statements (`if`/`for`/`while`) via `bash -c '...'` |
 | Terminal Snapshots | `hermes-snap-*.sh` files (plaintext command history + env vars) included in forced secure wipe |
+| Web Cache | `~/.hermes/cache/web/`, `screenshots/`, `videos/` symlinked to sandbox — crash-safe pre-hoc isolation |
 | Memory | SHA-256 hash diffing against baseline snapshot |
 | Skills/Cron | Detects unauthorized skill/cron creation during session |
 | Processes | Snapshot diffing to detect orphan processes; `.python_history` included |
@@ -101,7 +102,12 @@ Then start a **new session** (`/new`) to ensure the old session container is ful
 
 ## Changelog
 
-### v2.4.1
+### v2.5.1
+- **Export persistence fix** — Phase 1 split into two `terminal()` calls: simple command chain for `export` (persists across calls), then `bash -c` for idempotency logic (subshell-safe). Fixes broken `$INCOGNITO_TMP_DIR` in long sessions.
+
+### v2.5.0
+- **Web cache symlink to sandbox** — `~/.hermes/cache/web/`, `screenshots/`, `videos/` symlinked into sandbox. Pre-hoc isolation replaces post-hoc wipe — crash-safe, no cache to clean up after a crash.
+- **Agent log keyword redaction** — `web_search` query plaintext in `agent.log` redacted to `[REDACTED]` by session ID on cleanup.
 - **Terminal snapshot auto-wipe** — `hermes-snap-*.sh` files (contain plaintext command history + env vars) now included in forced secure wipe
 
 ### v2.4.0

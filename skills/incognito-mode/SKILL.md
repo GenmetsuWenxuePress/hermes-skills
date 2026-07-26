@@ -1,7 +1,7 @@
 ---
 name: incognito-mode
-description: "Incognito mode v2.4.1: defense-in-depth, hermes-snap-*.sh terminal snapshots now auto-wiped."
-version: 2.4.1
+description: "Incognito mode v2.5.1: defense-in-depth, web/screenshots/videos cache symlinked to sandbox, hermes-snap-*.sh auto-wiped, export persistence fix."
+version: 2.5.1
 author: 幻灭文学出版社 + Hermes (10-round cross-audited, process audit degraded, cache+tmp+subagent gaps closed)
 license: MIT
 metadata:
@@ -9,11 +9,11 @@ metadata:
     tags: [privacy, session, cleanup, ephemeral, sandbox, isolation]
 ---
 
-# 无痕模式 (Incognito Mode) v2.4.1
+# 无痕模式 (Incognito Mode) v2.5.1
 
 浏览器无痕模式的 Hermes 升级版。**四层纵深防御**（Skill 策略 → Runtime 护栏 → Framework 支持 → OS 隔离），确保会话结束后无持久痕迹残留。
 
-> **设计原则**：v1.0 是「事后擦除」→ v2.0 是「事前隔离」→ v2.1 是「事前隔离 + 事后全量反向审计」→ v2.2.1 是「稳健性硬化」→ v2.3.0 是「实战修正」→ v2.3.1 是「去重修正」→ v2.4.0 是「盲区填补：cache+tmp+subagent+python_history 四盲区关闭 + 进程审计降级」→ v2.4.1 是「终端快照泄漏修复：hermes-snap-*.sh 纳入强制覆写」。不信任 Phase 2 的隔离完美无缺——发现痕迹 → 报告 → 清除 → 二次验证。
+> **设计原则**：v1.0 是「事后擦除」→ v2.0 是「事前隔离」→ v2.1 是「事前隔离 + 事后全量反向审计」→ v2.2.1 是「稳健性硬化」→ v2.3.0 是「实战修正」→ v2.3.1 是「去重修正」→ v2.4.0 是「盲区填补：cache+tmp+subagent+python_history 四盲区关闭 + 进程审计降级」→ v2.4.1 是「终端快照泄漏修复：hermes-snap-*.sh 纳入强制覆写」→ v2.5.0 是「cache 盲区细化：web/screenshots/videos 三用户数据目录通过符号链接重定向至沙箱，事前隔离替代事后擦除，崩溃安全」。不信任 Phase 2 的隔离完美无缺——发现痕迹 → 报告 → 清除 → 二次验证。
 > ⚡ **三条铁律（每次行动前自检）**：
 > 1. **每条 terminal 命令** → 前缀 `HISTFILE=/dev/null HISTSIZE=0`，无一例外。**复合语句（`if`/`for`/`while`/`case`）必须用 `bash -c '...'` 包装**——直接前缀 `HISTFILE=/dev/null if ...` 会导致 bash 语法错误
 > 2. **从 Phase 2 到 Phase 4** → 必须经过 Phase 3 用户确认门禁，不得跳跃。（TTL 自动销毁需 Framework L2 支持，见 §7）
@@ -25,7 +25,7 @@ metadata:
 
 激活时 Agent 必须向用户展示：
 
-> 🔒 **无痕模式 v2.4.1 已激活**
+> 🔒 **无痕模式 v2.5.1 已激活**
 >
 > **本技能保护范围**：不写持久记忆、所有临时文件在 PID 隔离沙箱中、Shell History 被拦截、禁止 `/compress` 会话摘要落盘（仅保留在内存）、退出时安全覆写擦除。
 >
@@ -59,7 +59,7 @@ metadata:
 | `write_file` / `patch` | **仅限** Phase 1 创建的随机沙箱目录 `$INCOGNITO_TMP_DIR`。严禁写入 HOME、项目目录、`~/.hermes/`、`/var/log/`。新建 SQLite `.db` 必须登记在销毁清单中 |
 | `terminal` | 每条命令**必须**前缀 `HISTFILE=/dev/null HISTSIZE=0`。禁止 `pip install`（除非 `--target` 指向沙箱）、`git config --global`。禁止写入 `/var/log/` 或调用 `logger`。**精准服务界定**：允许连接已存在的服务端口（如 `127.0.0.1:6379`）或使用嵌入式数据库（SQLite），严禁创建新守护进程 |
 | `delegate_task` | **允许使用**，但必须在子代理 Prompt 首行注入无痕协议头（见 §3），分配 PID/UUID 级独立子沙箱，主代理负责递归清理 |
-| `web_search` / `web_extract` | 底层必须使用无痕 Context（禁止持久化 Cookie/LocalStorage/HTTP Cache/DNS Cache） |
+| `web_search` / `web_extract` | 允许使用。Hermes 框架会自动缓存结果至 `~/.hermes/cache/web/`——Skill 层无法拦截。Phase 1 已将 `cache/web/`、`screenshots/`、`videos/` 通过符号链接重定向至沙箱，Phase 4.7b 恢复后由 4.8 递归擦除。web_search 查询明文会在 agent.log 中留存，Phase 4.6b 在会话结束时按 session ID 精确清洗脱敏为 `[REDACTED]`。 |
 | `/compress` | **禁止落盘**。无痕期间允许在内存中压缩上下文，但严禁将摘要持久化写入磁盘文件 |
 
 ### ✅ 自由使用（只读，不触发持久化）
@@ -102,20 +102,36 @@ Phase 5: 全量审计报告 + 最终确认回执
 
 Agent **第一条回复**必须执行：
 
-1. **嵌套幂等判定（P0-1）**：
-   - 首先检查当前上下文是否已有 `INCOGNITO_MODE_ACTIVE=true`。
-   - 若已激活：输出 `🔒 当前会话已在无痕模式中（沙箱：$INCOGNITO_TMP_DIR），跳过二次初始化`，保持原有环境，直接进入 Phase 2。
-   - 若未激活：导出标记 `export INCOGNITO_MODE_ACTIVE=true`。
+> ⚠️ **环境变量持久化约束（v2.5.1）**：Hermes `terminal()` 的持久化环境变量仅在**简单命令**（不套 `bash -c`）中设置的 `export` 才能跨调用保留。`bash -c '...'` 是子 shell，其内部的 `export` 退出即失。因此步骤 1+2 必须拆分为两次 `terminal()` 调用：
+> 1. **先**用简单命令链 `export` 变量（不加 `bash -c`，用 `;` 串联多个简单命令）
+> 2. **再**用 `bash -c` 执行幂等校验 + 目录创建（此时 `$INCOGNITO_TMP_DIR` 已在父环境中可访问）
 
-2. **沙箱目录与时间戳标记（P0-2）**：
-   - 生成符合命名规范的沙箱路径：`/tmp/hermes-incognito-<PID>-<UUID>`（PID 仅用于命名区分，不用于存活校验——见上方架构约束）。创建 `pid.lock` 记录创建时间戳供 Phase 4.1 `-newer` 引用：
+1. **变量导出与幂等校验（P0-1，拆分为两次 terminal 调用）**：
+
+   **Terminal 调用 1**：先导出变量（简单命令链，不加 `bash -c`，确保持久化）：
    ```bash
-   export PID=$$  # 导出至子进程环境（注意：此 PID 在命令退出后立即失效，跨调用仅作命名标记）
-   UUID=$(python3 -c "import uuid; print(uuid.uuid4().hex[:8])" 2>/dev/null || date +%s)
-   export INCOGNITO_TMP_DIR="/tmp/hermes-incognito-${PID}-${UUID}"
+   HISTFILE=/dev/null HISTSIZE=0; export INCOGNITO_MODE_ACTIVE=true; export PID=$$; export UUID=$(python3 -c "import uuid; print(uuid.uuid4().hex[:8])" 2>/dev/null || date +%s); export INCOGNITO_TMP_DIR="/tmp/hermes-incognito-${PID}-${UUID}"; echo "INCOGNITO_TMP_DIR=$INCOGNITO_TMP_DIR"
+   ```
+   > 使用 `;` 串联多个**简单命令**——每条都是独立简单命令，`export` 在同一个 shell 进程内生效，变量持久化到后续 `terminal()` 调用。
+
+   **Terminal 调用 2**：幂等校验 + 沙箱创建（用 `bash -c` 包裹 `if` 判断）：
+   ```bash
+   HISTFILE=/dev/null HISTSIZE=0 bash -c '
+   # 幂等校验：通过 pid.lock 中的 session= 字段检测本会话是否已有沙箱
+   EXISTING=$(grep -l "session=${HERMES_SESSION_ID:-unknown}" /tmp/hermes-incognito-*/pid.lock 2>/dev/null | head -1 | xargs dirname 2>/dev/null)
+   if [ -n "$EXISTING" ] && [ -d "$EXISTING" ]; then
+     echo "NESTED_IDEMPOTENT: 已存在沙箱=$EXISTING"
+     exit 0
+   fi
+   # 创建沙箱目录（$INCOGNITO_TMP_DIR 由 Terminal 调用 1 持久化到父环境，子 shell 继承）
    mkdir -p "$INCOGNITO_TMP_DIR" && chmod 700 "$INCOGNITO_TMP_DIR"
    echo "created=$(date +%s) session=${HERMES_SESSION_ID:-unknown}" > "$INCOGNITO_TMP_DIR/pid.lock"
+   echo "沙箱已创建: $INCOGNITO_TMP_DIR"
+   echo "SESSION_ID=${HERMES_SESSION_ID:-unknown}"
+   echo "READY"
+   '
    ```
+   > 幂等校验改用 pid.lock 中的 `session=` 字段匹配（替代原先的环境变量 `INCOGNITO_MODE_ACTIVE` 检查），因为后者在 `bash -c` 子 shell 中本就不可靠。这也是 Phase 4 环境恢复使用的同一机制。
 
 3. **孤儿沙箱清理（时间戳 TTL，P0-2 修订）**：
    由于 Hermes `terminal()` 每次调用是独立 bash（命令退出后 PID 立即失效，`ps -p` 永远返回"不存活"），PID 锁校验在此运行时模型下不可用。改用**目录修改时间（mtime）**判定：删除 24 小时以上未修改的残留沙箱（正常无痕会话不会超过此 TTL；超时的必然是崩溃残留）。严禁递归扫描 `/mnt/`：
@@ -167,6 +183,29 @@ Agent **第一条回复**必须执行：
    由于 Hermes `terminal()` 每次调用是独立 bash 进程（父进程立即退出），`ps --ppid` 不可用。改用**前后快照比对**：记录当前用户进程 PID 清单，Phase 4 时 diff 检测新增进程。
    ```bash
    ps -u "$USER" -o pid= --no-headers 2>/dev/null | sort > "$INCOGNITO_TMP_DIR/process_baseline.txt"
+   ```
+
+8. **用户数据缓存重定向至沙箱（P1-9）**：
+   将 `~/.hermes/cache/` 下的用户数据子目录（`web/`、`screenshots/`、`videos/`）通过**符号链接**重定向至沙箱。无痕期间 Hermes 框架的所有 `web_search`/`web_extract` 缓存、浏览器截图、视频缓存将自动落入 `$INCOGNITO_TMP_DIR`，随 Phase 4.8 递归擦除一并销毁——无需单独审计比对。含自愈逻辑处理上次崩溃残留。
+   ```bash
+   # P1-9: 用户数据缓存重定向至沙箱（符号链接隔离）
+   for dir in web screenshots videos; do
+       CACHE_DIR="$HOME/.hermes/cache/$dir"
+       BAK_DIR="$HOME/.hermes/cache/${dir}.incognito-bak"
+       
+       # 自愈：恢复上次无痕会话崩溃残留的符号链接
+       if [ -L "$CACHE_DIR" ] && [ -d "$BAK_DIR" ]; then
+           rm "$CACHE_DIR"
+           mv "$BAK_DIR" "$CACHE_DIR"
+       fi
+       
+       # 重定向：将真实目录备份，替换为指向沙箱的符号链接
+       if [ -d "$CACHE_DIR" ] && [ ! -L "$CACHE_DIR" ]; then
+           mv "$CACHE_DIR" "$BAK_DIR"
+           mkdir -p "$INCOGNITO_TMP_DIR/cache_$dir"
+           ln -s "$INCOGNITO_TMP_DIR/cache_$dir" "$CACHE_DIR"
+       fi
+   done
    ```
 
 ---
@@ -231,12 +270,13 @@ Agent 依次执行以下 10 步流水线：
 > - 未含 `bash -c` 的 → 简单命令，执行时**直接前缀** `HISTFILE=/dev/null HISTSIZE=0` 即可，**切勿**额外套 `bash -c '...'` 外层（会与脚本内的单引号冲突）
 > - ⚠️ **特别注意 4.3 和 4.8**：Python 脚本使用单引号包裹（`python3 -c '...'`），若被 Agent 误套 `bash -c '...'` 外层会导致引号冲突——外层单引号会提前终结。
 
-> ⚠️ **Phase 4 环境前提（v2.4.1）**：所有审计命令依赖 `$INCOGNITO_TMP_DIR`。Phase 1 虽已 `export`，但长时间会话中变量可能丢失。Agent 在执行 Phase 4 **第一条 `terminal()` 命令**时必须先恢复变量——通过 pid.lock 中记录的 `session=<HERMES_SESSION_ID>` 精确定位本会话沙箱（无竞态、无需外部哨兵文件）。
+> ⚠️ **Phase 4 环境前提（v2.5.1）**：v2.5.1 起 Phase 1 已将 `export` 拆分为简单命令（无 `bash -c` 包裹），变量可跨调用持久化。但长时间会话中变量仍可能因 Hermes 进程重启等原因丢失——Agent 在执行 Phase 4 **第一条 `terminal()` 命令**时必须先恢复变量（通过 pid.lock 中的 `session=` 字段），作为冗余安全网：
 
 ```bash
 bash -c 'HISTFILE=/dev/null HISTSIZE=0;
 if [ -z "$INCOGNITO_TMP_DIR" ] || [ ! -d "$INCOGNITO_TMP_DIR" ]; then
-  export INCOGNITO_TMP_DIR=$(grep -l "session=${HERMES_SESSION_ID}" /tmp/hermes-incognito-*/pid.lock 2>/dev/null | head -1 | xargs dirname 2>/dev/null)
+  INCOGNITO_TMP_DIR=$(grep -l "session=${HERMES_SESSION_ID:-unknown}" /tmp/hermes-incognito-*/pid.lock 2>/dev/null | head -1 | xargs dirname 2>/dev/null)
+  export INCOGNITO_TMP_DIR
 fi'
 ```
 
@@ -418,6 +458,66 @@ git config --global --list 2>/dev/null | head -10
 
 > ⚠️ 完成后额外执行：`unset INCOGNITO_MODE_ACTIVE INCOGNITO_TMP_DIR PID 2>/dev/null` 清除持久 Shell 环境变量残留。
 
+#### 4.6b agent.log 搜索查询清洗
+利用 Linux `O_APPEND` 特性：Hermes 以追加模式打开 agent.log，外部进程在会话结束后按 session ID 精确匹配本会话的 `web_search` 日志行，原地替换查询明文为 `[REDACTED]` 后 `truncate`。主进程后续写入自动对齐新 EOF——不会产生空洞或文件损坏。同步清洗轮转日志 `agent.log.1`。
+```bash
+python3 -c '
+import os, re
+
+sid = os.environ.get("HERMES_SESSION_ID", "")
+if not sid:
+    print("\u26a0\ufe0f 无 HERMES_SESSION_ID，跳过 agent.log 清洗")
+    exit(0)
+
+log_path = os.path.expanduser("~/.hermes/logs/agent.log")
+if not os.path.isfile(log_path):
+    print("\u26a0\ufe0f agent.log 不存在，跳过清洗")
+    exit(0)
+
+escaped_sid = re.escape(sid)
+# 匹配: [SESSION_ID]...Web search via BACKEND: \x27query\x27
+pattern = re.compile(
+    r"(\[" + escaped_sid + r"\].*?Web search via [^:]+: )\x27(.*?)\x27",
+    re.IGNORECASE
+)
+replacement = r"\1\x27[REDACTED_INCOGNITO_QUERY]\x27"
+
+try:
+    with open(log_path, "r+", encoding="utf-8", errors="ignore") as f:
+        content = f.read()
+        cleaned, count = pattern.subn(replacement, content)
+        if count > 0:
+            f.seek(0)
+            f.write(cleaned)
+            f.truncate()
+            print(f"\u2705 agent.log \u5df2\u6e05\u6d17 {count} \u6761\u641c\u7d22\u67e5\u8be2")
+        else:
+            print("\u2705 agent.log \u4e2d\u65e0\u672c\u4f1a\u8bdd\u641c\u7d22\u8bb0\u5f55\uff0c\u8df3\u8fc7")
+except Exception as e:
+    print(f"\u26a0\ufe0f agent.log \u6e05\u6d17\u5931\u8d25: {e}")
+
+# \u540c\u6b65\u6e05\u6d17\u8f6e\u8f6c\u65e5\u5fd7
+rotated = os.path.expanduser("~/.hermes/logs/agent.log.1")
+if os.path.isfile(rotated):
+    try:
+        with open(rotated, "r+", encoding="utf-8", errors="ignore") as f:
+            content = f.read()
+            cleaned, count = pattern.subn(replacement, content)
+            if count > 0:
+                f.seek(0)
+                f.write(cleaned)
+                f.truncate()
+                print(f"\u2705 agent.log.1 \u5df2\u6e05\u6d17 {count} \u6761\u641c\u7d22\u67e5\u8be2")
+    except Exception as e:
+        print(f"\u26a0\ufe0f agent.log.1 \u6e05\u6d17\u5931\u8d25: {e}")
+'
+```
+- `TRY`: 按 session ID + `Web search via` 双重过滤 → 正则替换查询明文为 `[REDACTED_INCOGNITO_QUERY]` → 同步处理轮转日志。
+- `ON FAILURE`: 权限/编码错误记录。
+- `FALLBACK`: 报告未清洗的查询条数，提示手动审查 `agent.log`。
+- `REPORT`: 记录清洗条数（含 agent.log.1）。
+- `CONTINUE`
+
 #### 4.7 Git / 项目目录审计
 在项目根目录（若有）检查未提交变更。若当前不在 Git 仓库中，此步自动跳过。
 ```bash
@@ -426,6 +526,26 @@ cd "${PROJECT_DIR:-$HOME}" 2>/dev/null && git status --short 2>/dev/null | head 
 - `TRY`: 收集未追踪及已修改文件清单。
 - `FALLBACK`: 输出变更文件供用户确认（不自动不可逆回滚）。
 - `REPORT` & `CONTINUE`
+
+#### 4.7b 用户数据缓存恢复（在 4.8 之前——符号链接目标即将被销毁）
+将 Phase 1 重定向至沙箱的符号链接恢复为原始目录。**必须在 4.8 之前执行**——4.8 递归销毁沙箱后符号链接目标消失，恢复会失败。
+```bash
+# 4.7b: 用户数据缓存重定向恢复
+for dir in web screenshots videos; do
+    CACHE_DIR="$HOME/.hermes/cache/$dir"
+    BAK_DIR="$HOME/.hermes/cache/${dir}.incognito-bak"
+    
+    if [ -L "$CACHE_DIR" ] && [ -d "$BAK_DIR" ]; then
+        rm "$CACHE_DIR"
+        mv "$BAK_DIR" "$CACHE_DIR"
+    fi
+done
+```
+- `TRY`: 遍历 web/screenshots/videos，检测符号链接 → 删除 → 恢复备份目录。
+- `ON FAILURE`: 符号链接已在 4.8 中被销毁 → 标记 ⚠️，提示手动执行 `mv ~/.hermes/cache/<dir>.incognito-bak ~/.hermes/cache/<dir>`。
+- `FALLBACK`: 报告残留的 `.incognito-bak` 备份路径供用户手动恢复。
+- `REPORT`: 记录恢复状态（成功/残留备份路径）。
+- `CONTINUE`
 
 #### 4.8 沙箱物理安全擦除 (P0-3, Python 覆写安全擦除)
 放弃依赖 Shell `shred`（防 WSL/NTFS 失效），优先采用 Python `os.urandom` 覆盖文件内容后再行解挂与删除：
@@ -517,7 +637,7 @@ if tmp_dir and os.path.exists(tmp_dir) and tmp_dir.startswith("/tmp/hermes-incog
 
 Agent 汇总 Phase 4 的 10 步审计结果：
 
-> 🧹 **无痕模式结束 — 全量审计报告 (v2.4.0)**
+> 🧹 **无痕模式结束 — 全量审计报告 (v2.5.1)**
 >
 > | 审计项 | 状态 | 详情 |
 > |------|:--:|------|
@@ -527,7 +647,9 @@ Agent 汇总 Phase 4 的 10 步审计结果：
 > | 4.4 Skill / Cron | ✅/⚠️/❌ | [新增/修改数量，已删除/需手动] |
 > | 4.5 进程/python_history/子代理 | ✅/⚠️/❌ | [手工提示已输出/.python_history状态/子代理N个] |
 > | 4.6 环境变量 / 配置 | ✅/⚠️/❌ | [被修改的文件，已回滚/需手动] |
+> | 4.6b agent.log 清洗 | ✅/⚠️/❌ | [清洗 N 条搜索查询 / 无记录 / M 条失败] |
 > | 4.7 Git / 项目目录 | ✅/⚠️/❌ | [未追踪变更列出，未自动回滚] |
+> | 4.7b 缓存恢复 | ✅/⚠️/❌ | [已恢复/残留 .incognito-bak 备份需手动] |
 > | 4.8 沙箱物理安全擦除 | ✅/❌ | [Python os.urandom 覆写 + 物理删除完成] |
 > | 4.9 Session 容器销毁 | ✅/⚠️/❌ | [会话已删除/需手动执行 hermes sessions delete] |
 > | 4.10 二次验证 | ✅/❌ | [N 项复查通过/M 项仍有残留] |
@@ -620,6 +742,8 @@ Phase 4 物理擦除时，主代理通过递归遍历擦除 `$INCOGNITO_TMP_DIR`
 | **文件系统 atime** | `read_file` 更新文件访问时间戳 | `mount -o noatime`（需 root） |
 | **IDE / Git Watcher**| VSCode LSP、Git fsmonitor 捕获文件变动 | 关闭 IDE 文件自动监视 |
 | **已存在服务日志**| Redis/PostgreSQL/Docker 自身连接日志 | 不在无痕模式下发送敏感业务日志 |
+| **Hermes Web Cache** | `web_search`/`web_extract` 结果由框架自动缓存至 `~/.hermes/cache/web/`；v2.5.0 起 Phase 1 通过符号链接重定向至沙箱，但若 Hermes 进程在 Phase 4.7b 恢复前崩溃，缓存文件在 `/tmp/` 沙箱中残留（24h TTL 孤儿清理兜底） | 无痕会话中避免访问高度敏感 URL |
+| **agent.log 搜索查询** | web_search 查询明文写入 `~/.hermes/logs/agent.log`；v2.5.1 起 Phase 4.6b 按 session ID 精确正则匹配清洗脱敏为 `[REDACTED]`，利用 O_APPEND 特性保证主进程无缝继续。若 Hermes 在 Phase 4 前崩溃则查询明文永久残留 | Phase 4.6b 自动清洗；崩溃残留需手动审查 agent.log |
 
 ### 网络/云端级
 
@@ -645,6 +769,7 @@ Phase 4 物理擦除时，主代理通过递归遍历擦除 `$INCOGNITO_TMP_DIR`
 - ❌ **创建临时 Skill**：调用 `skill_manage create`
 - ❌ **创建 Cron 清理任务**：通过 `cronjob create` 创建延迟清理任务
 - ❌ **系统剪贴板**：通过 `xclip`/`pbcopy` 写入共享剪贴板
+- ❌ **无痕会话中依赖事后擦除**：web_search 查询明文和 web_extract 缓存文件在 Phase 4 清洗前仍以原始形式存在于 agent.log 和沙箱中。若 Hermes 在 Phase 4 前崩溃，这些明文永久残留
 
 ---
 

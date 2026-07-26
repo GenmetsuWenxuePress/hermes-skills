@@ -1,4 +1,4 @@
-# 🔒 Hermes 无痕模式 v2.4.1
+# 🔒 Hermes 无痕模式 v2.5.1
 
 > 浏览器无痕模式的 AI Agent 升级版。四层纵深防御，零痕迹残留。
 
@@ -32,6 +32,7 @@ Phase 5: 审计报告 + 最终确认回执
 | 文件系统 | 所有写入限定在时间戳 TTL 沙箱内；`/tmp/` 根目录扫描检测绕过写入；非沙箱写入事后检测并擦除 |
 | Shell 历史 | 每条命令包装 `HISTFILE=/dev/null HISTSIZE=0`；复合语句（`if`/`for`/`while`）通过 `bash -c '...'` 执行 |
 | 终端快照 | `hermes-snap-*.sh` 文件（含命令明文+环境变量）纳入强制安全擦除 |
+| Web 缓存 | `~/.hermes/cache/web/`、`screenshots/`、`videos/` 符号链接重定向至沙箱——崩溃安全 |
 | Memory 记忆 | SHA-256 哈希比对基线快照，检测意外持久化写入 |
 | Skill/Cron | 检测会话期间未授权的技能/定时任务创建 |
 | 进程 | 快照 diff 检测孤儿进程，含 `.python_history` |
@@ -125,7 +126,12 @@ Agent 随后会执行：
 
 ## 更新日志
 
-### v2.4.1
+### v2.5.1
+- **Export 持久化修复** — Phase 1 拆分为两次 `terminal()` 调用：简单命令链做 `export`（跨调用持久化），再 `bash -c` 做幂等校验（子 shell 安全）。修复长会话中 `$INCOGNITO_TMP_DIR` 丢失问题。
+
+### v2.5.0
+- **Web 缓存符号链接至沙箱** — `~/.hermes/cache/web/`、`screenshots/`、`videos/` 通过符号链接重定向至沙箱。事前隔离替代事后擦除——崩溃安全，即使意外退出也无残留缓存。
+- **Agent 日志关键词脱敏** — `agent.log` 中 `web_search` 查询明文在会话结束时按 session ID 精确清洗为 `[REDACTED]`。
 - **终端快照自动覆写** — `hermes-snap-*.sh` 文件（含本会话全部命令明文+环境变量）纳入强制安全擦除
 
 ### v2.4.0
