@@ -1,4 +1,4 @@
-# 🔒 Hermes Incognito Mode v2.3.1
+# 🔒 Hermes Incognito Mode v2.4.1
 
 [中文版 (Chinese)](README_CN.md) | [English](README.md)
 
@@ -35,7 +35,8 @@ Phase 5: Audit report + final receipt
 | Shell History | Every command wrapped with `HISTFILE=/dev/null HISTSIZE=0`; compound statements (`if`/`for`/`while`) via `bash -c '...'` |
 | Memory | SHA-256 hash diffing against baseline snapshot |
 | Skills/Cron | Detects unauthorized skill/cron creation during session |
-| Processes | Snapshot diffing to detect orphan processes |
+| Processes | Snapshot diffing to detect orphan processes; `.python_history` included |
+| Subagents | Residual subagent sandboxes audited during cleanup |
 | Session | Container destruction as final line of defense |
 
 ### Known blind spots (informed consent)
@@ -99,7 +100,15 @@ Then start a **new session** (`/new`) to ensure the old session container is ful
 
 ## Changelog
 
-### v2.3.1
+### v2.4.1
+- **Terminal snapshot auto-wipe** — `hermes-snap-*.sh` files (contain plaintext command history + env vars) now included in forced secure wipe
+
+### v2.4.0
+- **Cache + tmp + subagent blind spots closed** — `~/.hermes/cache/`, `/tmp/` root, subagent residual directories now audited and wiped
+- **Python history audit** — `.python_history` added to process/filesystem audit scope
+- **Process audit degraded** — acknowledged inherent limitation of Hermes `terminal()` model
+- **Phase 4 environment recovery** — auto-restore `$INCOGNITO_TMP_DIR` via `pid.lock` session matching if variable lost during long sessions
+- **Expanded pre-exclusion paths** — `.hermes/cache/`, `.local/state/tirith/` added to noise filter
 - **Deduplicated session delete** — removed duplicate Phase 4.9 / Phase 5 `hermes sessions delete` instructions
 - **Phase 1 numbering fix** — corrected step numbering after v2.3.0 additions
 - **Generalized pre-exclusion paths** — broader path filtering in filesystem audit
@@ -123,4 +132,4 @@ MIT — see [LICENSE](LICENSE)
 
 ## Author
 
-幻灭文学出版社 + Hermes (9-round cross-audited, Python scripts hardened)
+幻灭文学出版社 + Hermes (10-round cross-audited)

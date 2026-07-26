@@ -1,20 +1,19 @@
 ---
 name: incognito-mode
-description: "Incognito mode v2.3.1: defense-in-depth, zero trace left, de-duplicated execution."
-version: 2.3.1
-author: 幻灭文学出版社 + Hermes (9-round cross-audited, de-duplicated, numbering fixed)
+description: "Incognito mode v2.4.1: defense-in-depth, hermes-snap-*.sh terminal snapshots now auto-wiped."
+version: 2.4.1
+author: 幻灭文学出版社 + Hermes (10-round cross-audited, process audit degraded, cache+tmp+subagent gaps closed)
 license: MIT
 metadata:
   hermes:
     tags: [privacy, session, cleanup, ephemeral, sandbox, isolation]
 ---
 
-# 无痕模式 (Incognito Mode) v2.3.1
+# 无痕模式 (Incognito Mode) v2.4.1
 
 浏览器无痕模式的 Hermes 升级版。**四层纵深防御**（Skill 策略 → Runtime 护栏 → Framework 支持 → OS 隔离），确保会话结束后无持久痕迹残留。
 
-> 不信任 Phase 2 的隔离完美无缺——在用户发出结束指令后，主动检查每一条可能的持久化路径，发现痕迹 → 报告 → 清除 → 二次验证，形成完整闭环。
-
+> **设计原则**：v1.0 是「事后擦除」→ v2.0 是「事前隔离」→ v2.1 是「事前隔离 + 事后全量反向审计」→ v2.2.1 是「稳健性硬化」→ v2.3.0 是「实战修正」→ v2.3.1 是「去重修正」→ v2.4.0 是「盲区填补：cache+tmp+subagent+python_history 四盲区关闭 + 进程审计降级」→ v2.4.1 是「终端快照泄漏修复：hermes-snap-*.sh 纳入强制覆写」。不信任 Phase 2 的隔离完美无缺——发现痕迹 → 报告 → 清除 → 二次验证。
 > ⚡ **三条铁律（每次行动前自检）**：
 > 1. **每条 terminal 命令** → 前缀 `HISTFILE=/dev/null HISTSIZE=0`，无一例外。**复合语句（`if`/`for`/`while`/`case`）必须用 `bash -c '...'` 包装**——直接前缀 `HISTFILE=/dev/null if ...` 会导致 bash 语法错误
 > 2. **从 Phase 2 到 Phase 4** → 必须经过 Phase 3 用户确认门禁，不得跳跃。（TTL 自动销毁需 Framework L2 支持，见 §7）
@@ -26,7 +25,7 @@ metadata:
 
 激活时 Agent 必须向用户展示：
 
-> 🔒 **无痕模式 v2.3.1 已激活**
+> 🔒 **无痕模式 v2.4.1 已激活**
 >
 > **本技能保护范围**：不写持久记忆、所有临时文件在 PID 隔离沙箱中、Shell History 被拦截、禁止 `/compress` 会话摘要落盘（仅保留在内存）、退出时安全覆写擦除。
 >
@@ -81,9 +80,9 @@ Phase 2: 无痕隔离执行（事前防线，禁止新服务/禁止/compress落�
 Phase 3: 用户确认门禁 / TTL (Framework L2) (解耦自杀死锁)
    ↓  ← 用户选择「确认销毁」/「/incognito abort」
 Phase 4: 反向全量审计 + 逐项清除 (TRY→FALLBACK) + 二次验证（事后防线）
-   ├ 4.1 文件系统审计 (-maxdepth 5)  ├ 4.2 Shell History 审计
+   ├ 4.1 文件系统审计 + /tmp/根目录  ├ 4.2 Shell History 审计
    ├ 4.3 Memory 审计 (SHA-256 哈希比对)├ 4.4 Skill/Cron 审计
-   ├ 4.5 进程快照比对审计           ├ 4.6 环境变量/配置审计
+   ├ 4.5 进程/python_history/子代理审计 ├ 4.6 环境变量/配置审计
    ├ 4.7 Git/项目审计               ├ 4.8 沙箱 Python 覆写安全擦除
    ├ 4.9 Session 容器销毁            └ 4.10 二次验证
    ↓
@@ -186,6 +185,7 @@ Agent **第一条回复**必须执行：
     ```
   > ⚠️ **为什么不能直接前缀？** Bash 的 `VAR=val cmd` 语法仅对简单命令生效。`HISTFILE=/dev/null if ...` 会被解析器视为畸形简单命令，抛出 `syntax error near unexpected token 'then'`。复合语句必须通过 `bash -c` 或子 shell `(export VAR; if ...)` 间接设置环境变量。
   > ⚠️ **单引号 Python 脚本**：形如 `python3 -c '...'` 的命令使用单引号包裹 Python 代码。**切勿**对此类命令套 `bash -c '...'` 外层——外层单引号会与脚本内单引号冲突，导致字符串提前终结。此类命令是简单命令，直接前缀 `HISTFILE=/dev/null HISTSIZE=0` 即可。
+  > ⚠️ **禁止过批**：不要将多个独立步骤塞进一个 `bash -c` 块。每个步骤使用独立的 `terminal()` 调用——嵌套引号在 Hermes `eval` 层会经历双重解析（见 §8.5），过批是引号逃逸地狱的最短路径。经验法则：一个 `bash -c` 块做一件事。
 - **精准服务界定**：
   - 允许连接已存在的服务端口（例如 `127.0.0.1:6379`）。
   - 允许使用嵌入式数据库（SQLite），但创建的 `.db` 文件必须存放在沙箱内或登记至销毁清单。
@@ -227,9 +227,20 @@ Agent **第一条回复**必须执行：
 Agent 依次执行以下 10 步流水线：
 
 > 📌 **包装规则速查**：以下命令块中——
-> - 已含 `bash -c` 的 → 直接复制执行（4.5 Step A/B、Phase 5）
+> - 已含 `bash -c` 的 → 直接复制执行（4.2、4.5b、4.5c、4.6、Phase 5；Phase 4 环境恢复块）
 > - 未含 `bash -c` 的 → 简单命令，执行时**直接前缀** `HISTFILE=/dev/null HISTSIZE=0` 即可，**切勿**额外套 `bash -c '...'` 外层（会与脚本内的单引号冲突）
 > - ⚠️ **特别注意 4.3 和 4.8**：Python 脚本使用单引号包裹（`python3 -c '...'`），若被 Agent 误套 `bash -c '...'` 外层会导致引号冲突——外层单引号会提前终结。
+
+> ⚠️ **Phase 4 环境前提（v2.4.1）**：所有审计命令依赖 `$INCOGNITO_TMP_DIR`。Phase 1 虽已 `export`，但长时间会话中变量可能丢失。Agent 在执行 Phase 4 **第一条 `terminal()` 命令**时必须先恢复变量——通过 pid.lock 中记录的 `session=<HERMES_SESSION_ID>` 精确定位本会话沙箱（无竞态、无需外部哨兵文件）。
+
+```bash
+bash -c 'HISTFILE=/dev/null HISTSIZE=0;
+if [ -z "$INCOGNITO_TMP_DIR" ] || [ ! -d "$INCOGNITO_TMP_DIR" ]; then
+  export INCOGNITO_TMP_DIR=$(grep -l "session=${HERMES_SESSION_ID}" /tmp/hermes-incognito-*/pid.lock 2>/dev/null | head -1 | xargs dirname 2>/dev/null)
+fi'
+```
+
+> 后续每条命令正常前缀 `HISTFILE=/dev/null HISTSIZE=0`，`$INCOGNITO_TMP_DIR` 已在上一步导出到环境中。
 
 #### 4.1 文件系统审计 — 非沙箱写入检测（限制 `-maxdepth 5` 平衡性能与覆盖）
 检查 HOME 及项目目录中本会话期间新增/修改的文件（限制 `-maxdepth 5` 以平衡性能与覆盖；深度写入 `~/.config/<app>/deep/nested/` 可能漏检，属已知权衡）。**Hermes 框架自身的运行文件（state DB、日志、cron output、gbrain、openclaw 等）已预排除，避免噪音命中：**
@@ -246,8 +257,10 @@ find ~ -maxdepth 5 -newer "$INCOGNITO_TMP_DIR/pid.lock" \
   -not -path "*/\.hermes/*gateway*" -not -path "*/\.hermes/channel_directory.json" \
   -not -path "*/\.hermes/.update_check" -not -path "*/\.hermes/models_dev_cache.json" \
   -not -path "*/\\.hermes/desktop/*" -not -path "*/\\.hermes/hermes-agent/*" \
-  -not -path "*/\.hermes/weixin/*" \
-  -not -path "*/\.openclaw/*" -not -path "*/\.gbrain/*" \
+  -not -path "*/\\.hermes/weixin/*" \
+  -not -path "*/\\.hermes/cache/*" \
+  -not -path "*/.local/state/tirith/*" \
+  -not -path "*/\\.openclaw/*" -not -path "*/\\.gbrain/*" \
   -type f 2>/dev/null | head -50
 ```
 - `TRY`: **先分类**：若命中文件为 Hermes/系统运行文件（state.db、logs、cron output、gbrain、openclaw 等）→ 标记为系统文件，**不删除**。仅对用户数据文件（文档、项目源码、配置等）执行 Python 覆写 + 删除。> ⚠️ 此分类依赖 Agent 推理判断，非脚本自动化。**主要防线是上方 `find` 的 `-not -path` 预排除列表**（已覆盖绝大多数已知系统路径）。Agent 分类仅作为二次安全网，处理预排除列表未覆盖的极少数漏网路径。
@@ -256,12 +269,28 @@ find ~ -maxdepth 5 -newer "$INCOGNITO_TMP_DIR/pid.lock" \
 - `REPORT`: 记录已清除或残留路径，区分「系统文件（已跳过）」和「用户数据（已清除）」。
 - `CONTINUE`: 继续下一步。
 
+##### 4.1b `/tmp/` 根目录审计 — 沙箱外写入检测
+Phase 2 规则要求所有文件写入必须在 `$INCOGNITO_TMP_DIR` 内，但 Phase 4 的设计原则是**不信任 Phase 2**。此补充审计扫描 `/tmp/` 根目录（非沙箱路径），检测是否有绕过沙箱的泄漏写入：
+```bash
+find /tmp -maxdepth 1 -newer "$INCOGNITO_TMP_DIR/pid.lock" \
+  -not -path "$INCOGNITO_TMP_DIR" -not -path "$INCOGNITO_TMP_DIR/*" \
+  -not -name "hermes-incognito-*" \
+  -type f 2>/dev/null | head -20
+```
+- `TRY`: 列出发现的非沙箱 `/tmp/` 文件，Python 覆写 + 删除。⚠️ **特别注意**：`hermes-snap-*.sh` 包含本会话全部命令明文（含环境变量中的 API key 等敏感信息），**不视为可跳过的系统文件**——必须与其他用户数据文件同等对待，执行完整覆写擦除。Agent 不得以"Hermes 系统文件"为由跳过。
+- `ON FAILURE`: 权限错误则跳过。
+- `FALLBACK`: `rm -f <file>`。
+- `REPORT`: 记录已清除路径，区分「hermes-snap（已覆写）」和「其他泄漏文件」。
+- `CONTINUE`: 继续下一步。
+
 #### 4.2 Shell History 审计
 检查并清除本会话期间的命令历史记录。（注：`sed` 仅清理含 `hermes-incognito` 字面量的行——覆盖范围受限于标记字符串。真正的防线是 Phase 2 每条命令强制 `HISTFILE=/dev/null` 前缀，确保命令不进入 history；此处 `sed` 为冗余安全网。）
 ```bash
+bash -c 'HISTFILE=/dev/null HISTSIZE=0;
 history -c 2>/dev/null || true
-[ -f ~/.bash_history ] && sed -i '/^#.*hermes-incognito/d' ~/.bash_history 2>/dev/null || true
-[ -f ~/.zsh_history ] && sed -i '/hermes-incognito/d' ~/.zsh_history 2>/dev/null || true
+[ -f ~/.bash_history ] && sed -i "/^#.*hermes-incognito/d" ~/.bash_history 2>/dev/null || true
+[ -f ~/.zsh_history ] && sed -i "/hermes-incognito/d" ~/.zsh_history 2>/dev/null || true
+'
 ```
 - `TRY`: `history -c` + `sed` 清理历史文件中的无痕会话命令。
 - `FALLBACK`: 提示用户手动执行 `history -c`。
@@ -321,77 +350,67 @@ else:
 检查无痕会话期间是否意外创建了技能文件或定时任务：
 ```bash
 find ~/.hermes/skills/ -maxdepth 5 -newer "$INCOGNITO_TMP_DIR/pid.lock" -type f 2>/dev/null | grep -v "incognito-mode" | head -20
-hermes cron list 2>/dev/null
+HISTFILE=/dev/null HISTSIZE=0 hermes cron list 2>/dev/null
 ```
 - `TRY`: 对发现的新增 Skill 文件执行 `rm -f <file>`；对新建 Cron 执行 `hermes cron remove <job_id>`。
 - `FALLBACK`: 列出需手动移除的文件路径和 Cron ID。
 - `REPORT` & `CONTINUE`
 
-#### 4.5 孤儿进程审计（进程快照比对，两步拆分）
+#### 4.5 进程审计 — 已知限制 + `.python_history` 补充审计 + 子代理验证
 
-> ⚠️ **架构约束**：Hermes `terminal()` 每次调用是独立 bash 进程，Phase 1 的 Shell 进程在执行完初始化命令后立即退出。`ps --ppid` 对已死父进程永远返回空。改用 Phase 1 记录的进程快照比对：diff 检测本会话期间新增的用户进程。
+> ⚠️ **设计失效声明（v2.4.0）**：原 PID 快照 diff 方案在此运行模型下**不可用**——Hermes `terminal()` 每次调用独立 bash 进程，Phase 4 执行 `ps` 快照时只能抓到 Phase 4 自身瞬间存在的并行终端调用，它们在你读到输出前就已退出。这不是 bug，是架构层面的设计失效。
 >
-> ⚠️ **安全扫描器兼容**：原单步 Python 脚本包含 `ps -u $USER` + `subprocess` 链式调用，触发了 Hermes 安全扫描器的 MEDIUM 级拦截（超时阻断）。v2.3.0 拆分为两步：Step A 纯 shell diff（低风险），仅在发现差异时进入 Step B。
+> **替代策略**：真正的进程防线是 Phase 2「禁止启动新守护进程/服务」规则（`docker run`/`systemctl start`/`nohup`/`&`） + Phase 4.9 Session 容器销毁。本步骤降级为三项手工/补充检查：
 
-**Step A — 纯 shell PID diff**（先判断是否有新增进程）：
+##### 4.5a 手工进程提示
+Agent 输出以下提示（不执行自动化扫描）：
+> ℹ️ 自动进程检测在此运行模型下不可用。如本会话中你手动启动了后台进程、或使用过 Python REPL 交互，请执行 `ps -u $USER` 审查。真正的进程防线是 Phase 2 规则 + 4.9 Session 销毁。
+
+##### 4.5b `.python_history` 审计
+检查 Python REPL 历史文件是否在无痕会话期间被写入（此前为盲区）：
 ```bash
 bash -c 'HISTFILE=/dev/null HISTSIZE=0;
-if [ -f "$INCOGNITO_TMP_DIR/process_baseline.txt" ]; then
-  ps -u "$USER" -o pid= --no-headers 2>/dev/null | sort > "$INCOGNITO_TMP_DIR/process_current.txt"
-  NEW_COUNT=$(comm -13 "$INCOGNITO_TMP_DIR/process_baseline.txt" "$INCOGNITO_TMP_DIR/process_current.txt" | wc -l)
-  if [ "$NEW_COUNT" -gt 0 ]; then
-    echo "NEW_PROCESSES=$NEW_COUNT"
-    comm -13 "$INCOGNITO_TMP_DIR/process_baseline.txt" "$INCOGNITO_TMP_DIR/process_current.txt" > "$INCOGNITO_TMP_DIR/process_new.txt"
-  else
-    echo "✅ 未检测到新增用户进程（与 Phase 1 快照一致）"
-  fi
+if [ -f ~/.python_history ]; then
+  ls -la ~/.python_history 2>/dev/null
+  echo "⚠️ .python_history 存在——如本会话写入则需清理：rm -f ~/.python_history"
 else
-  echo "⚠️ 无进程基线快照，跳过进程审计"
+  echo "✅ 无 .python_history"
 fi'
 ```
+- `TRY`: 检查文件存在性。
+- `FALLBACK`: 标记为已知盲区，提示手动清理命令。
+- `REPORT` & `CONTINUE`
 
-**Step B — Python 详情查询**（仅当 Step A 输出 `NEW_PROCESSES=N` 且 N > 0 时执行）：
+##### 4.5c 子代理沙箱验证
+检查 Phase 2 期间委派的子代理是否在正确路径下创建了沙箱，确认将被 4.8 递归擦除覆盖：
 ```bash
 bash -c 'HISTFILE=/dev/null HISTSIZE=0;
-python3 -c "
-import os, subprocess
-tmp_dir = os.environ.get(\"INCOGNITO_TMP_DIR\", \"/tmp\")
-new_file = os.path.join(tmp_dir, \"process_new.txt\")
-if not os.path.isfile(new_file):
-    exit(0)
-with open(new_file) as f:
-    new_pids = [line.strip() for line in f if line.strip().isdigit()]
-self_pids = {str(os.getpid())}
-try:
-    ppid = subprocess.run([\"ps\", \"-p\", str(os.getpid()), \"-o\", \"ppid=\", \"--no-headers\"],
-                         capture_output=True, text=True).stdout.strip()
-    if ppid.isdigit():
-        self_pids.add(ppid)
-except Exception:
-    pass
-new_pids = [p for p in new_pids if p not in self_pids]
-if new_pids:
-    print(f\"⚠️ 检测到 {len(new_pids)} 个新增用户进程:\")
-    for pid in new_pids:
-        cmd = subprocess.run([\"ps\", \"-p\", str(pid), \"-o\", \"cmd=\", \"--no-headers\"],
-                            capture_output=True, text=True).stdout.strip()
-        print(f\"  PID {pid}: {cmd[:120]}\")
-    print(\"提示: 请手动审查，若确认为本会话派生，执行 kill -15 <PID>\")
-"
-rm -f "$INCOGNITO_TMP_DIR/process_current.txt" "$INCOGNITO_TMP_DIR/process_new.txt" 2>/dev/null
-' 2>/dev/null || echo "⚠️ 进程详情查询失败（可手动执行 ps -u \$USER 审查）"
+if [ -d "$INCOGNITO_TMP_DIR" ]; then
+  SUB_COUNT=$(find "$INCOGNITO_TMP_DIR" -maxdepth 1 -type d -name "subagent_*" 2>/dev/null | wc -l)
+  if [ "$SUB_COUNT" -gt 0 ]; then
+    echo "📋 检测到 $SUB_COUNT 个子代理沙箱："
+    find "$INCOGNITO_TMP_DIR" -maxdepth 1 -type d -name "subagent_*" -exec du -sh {} \; 2>/dev/null
+    echo "✅ 以上子沙箱将被 4.8 递归安全擦除覆盖"
+  else
+    echo "✅ 无子代理沙箱，跳过"
+  fi
+else
+  echo "⚠️ 沙箱目录不存在，跳过子代理审计"
+fi'
 ```
-- `TRY`: Step A 纯 shell diff → 无新增则直接通过；有新增则进 Step B Python 详情。
-- `ON FAILURE（安全扫描拦截）`: Step B 被拦截时，标记 ⚠️ 跳过，给出 `ps -u $USER` 手工替代命令。
-- `FALLBACK`: 若快照文件缺失，标记 ⚠️ 跳过。
-- `REPORT`: 若发现新增进程，列出 PID 和命令，提示用户手动审查（**仅报告，不自动 kill**）。
+- `TRY`: 列出子代理沙箱清单及其大小，确认在 `$INCOGNITO_TMP_DIR` 范围内。
+- `ON FAILURE（安全扫描拦截）`: 标记 ⚠️ 跳过，4.8 的递归擦除仍会覆盖。
+- `FALLBACK`: 沙箱缺失时跳过。
+- `REPORT`: 记录子代理数量和路径。
 - `CONTINUE`
 
 #### 4.6 环境变量与配置审计
 检查本会话是否意外修改了全局配置文件：
 ```bash
+bash -c 'HISTFILE=/dev/null HISTSIZE=0;
 grep -n "INCOGNITO\|hermes-incognito" ~/.bashrc ~/.zshrc ~/.profile ~/.env 2>/dev/null || echo "无配置变更"
 git config --global --list 2>/dev/null | head -10
+'
 ```
 - `TRY`: 对发现的变更行执行 `sed -i '/INCOGNITO/d' <file>` 回滚。
 - `FALLBACK`: 报告变更文件和行号，提示手动编辑。
@@ -498,15 +517,15 @@ if tmp_dir and os.path.exists(tmp_dir) and tmp_dir.startswith("/tmp/hermes-incog
 
 Agent 汇总 Phase 4 的 10 步审计结果：
 
-> 🧹 **无痕模式结束 — 全量审计报告 (v2.3.1)**
+> 🧹 **无痕模式结束 — 全量审计报告 (v2.4.0)**
 >
 > | 审计项 | 状态 | 详情 |
 > |------|:--:|------|
-> | 4.1 文件系统（非沙箱写入） | ✅/⚠️/❌ | [发现 N 个文件，已 Python 覆写/残留路径] |
+> | 4.1 文件系统（HOME + /tmp/） | ✅/⚠️/❌ | [发现 N 个文件，已清除/残留路径] |
 > | 4.2 Shell History | ✅/⚠️/❌ | [增量行数，已清除/残留行号] |
 > | 4.3 Memory 存储 | ✅/⚠️/❌ | [SHA-256 哈希比对，文件未变更/已变更需审查] |
 > | 4.4 Skill / Cron | ✅/⚠️/❌ | [新增/修改数量，已删除/需手动] |
-> | 4.5 孤儿进程 | ✅/⚠️/❌ | [快照比对，新增 N 个/无新增] |
+> | 4.5 进程/python_history/子代理 | ✅/⚠️/❌ | [手工提示已输出/.python_history状态/子代理N个] |
 > | 4.6 环境变量 / 配置 | ✅/⚠️/❌ | [被修改的文件，已回滚/需手动] |
 > | 4.7 Git / 项目目录 | ✅/⚠️/❌ | [未追踪变更列出，未自动回滚] |
 > | 4.8 沙箱物理安全擦除 | ✅/❌ | [Python os.urandom 覆写 + 物理删除完成] |
@@ -648,7 +667,7 @@ Phase 4 物理擦除时，主代理通过递归遍历擦除 `$INCOGNITO_TMP_DIR`
 2. **会话删除 best-effort**：若 Session 容器销毁受阻，Phase 5 输出具体的 `hermes sessions delete <ID>` 提示人工执行。
 3. **15 分钟 TTL 无交互提醒**：Phase 3 停滞 15 分钟无回复，Agent 应提醒用户手动执行 `/incognito abort`。自动销毁需 `[Framework L2]` 外部 Timer 支持（见 §7）。
 4. **时间戳 TTL 孤儿清理**：Phase 1 步骤 3 使用目录 mtime + 24h TTL 替代 PID 锁校验（PID 在 Hermes `terminal()` 独立 bash 模型下不可用）。此机制保守且安全——正常无痕会话不会超过 24 小时，超时必然是崩溃残留。
-5. **嵌套脚本引号策略**：当命令包含三层嵌套（bash → Python → 字符串）时，统一使用 `bash -c '...python3 -c "..."'` 模式。外层单引号保护 `$` 和反斜杠不被 bash 展开，内层 Python 双引号内的 `\"` 还原为字面引号。禁止混用单双引号导致字符串截断或语法错误。示例：
+5. **嵌套脚本引号策略**：当命令包含三层嵌套（bash → Python → 字符串）时，统一使用 `bash -c '...python3 -c "..."'` 模式。外层单引号保护 `$` 和反斜杠不被 bash 展开，内层 Python 双引号内的 `\\\"` 还原为字面引号。禁止混用单双引号导致字符串截断或语法错误。示例：
    ```bash
    bash -c 'python3 -c "
    import os
@@ -656,3 +675,15 @@ Phase 4 物理擦除时，主代理通过递归遍历擦除 `$INCOGNITO_TMP_DIR`
    print(f\"value={path}\")
    "'
    ```
+
+   > ⚠️ **Hermes `terminal()` eval 双重解析陷阱（v2.4.1）**：Hermes 的 `terminal()` 底层使用 `eval` 执行命令字符串，在传给 bash 之前会**额外剥一层引号**。这导致一个隐蔽的坑：
+   >
+   > ```bash
+   > bash -c 'python3 -c "print(f'"'"'x'"'"')"'
+   > #                         ↑ eval 把这里的 ' 当成 bash -c 字符串结束符
+   > #                           → bash 收到截断的命令 → 语法错误
+   > ```
+   >
+   > **Python f-string 中禁止使用单引号**（`f'...'`）——在 `bash -c '...'` 外层单引号 + Hermes `eval` 的双重解析下，`f'` 的 `'` 会提前终结外层字符串。必须使用 `f"..."` 双引号。
+
+   > ⚠️ **禁止过批（Anti-Batching）**：不要将多个独立步骤塞进一个 `bash -c` 块。每个 Phase 1 步骤应使用**独立的 `terminal()` 调用**——这不仅避免了嵌套引号逃逸的地狱，还让每个步骤的错误隔离、可独立重试。经验法则：只要一个 `bash -c` 块内同时包含 Phase 1 的步骤 2 + 步骤 3 + 步骤 6，就已经过批了。
