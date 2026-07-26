@@ -110,7 +110,7 @@ Agent **第一条回复**必须执行：
 
    **Terminal 调用 1**：先导出变量（简单命令链，不加 `bash -c`，确保持久化）：
    ```bash
-   HISTFILE=/dev/null HISTSIZE=0; export INCOGNITO_MODE_ACTIVE=true; export PID=$$; export UUID=$(python3 -c "import uuid; print(uuid.uuid4().hex[:8])" 2>/dev/null || date +%s); export INCOGNITO_TMP_DIR="/tmp/hermes-incognito-${PID}-${UUID}"; echo "INCOGNITO_TMP_DIR=$INCOGNITO_TMP_DIR"
+   HISTFILE=/dev/null HISTSIZE=0; export INCOGNITO_MODE_ACTIVE=true; export UUID=$(python3 -c "import uuid; print(uuid.uuid4().hex[:8])" 2>/dev/null || python3 -c "import random; print('{:08x}'.format(random.randint(0, 0xFFFFFFFF)))"); export INCOGNITO_TMP_DIR="/tmp/hermes-incognito-${UUID}"; echo "INCOGNITO_TMP_DIR=$INCOGNITO_TMP_DIR"
    ```
    > 使用 `;` 串联多个**简单命令**——每条都是独立简单命令，`export` 在同一个 shell 进程内生效，变量持久化到后续 `terminal()` 调用。
 
@@ -705,7 +705,7 @@ RULES:
 
 ```bash
 SUB_UUID=$(python3 -c "import uuid; print(uuid.uuid4().hex[:8])" 2>/dev/null || date +%s)
-SUB_DIR="$INCOGNITO_TMP_DIR/subagent_${PID}_${SUB_UUID}"
+SUB_DIR="$INCOGNITO_TMP_DIR/subagent_${SUB_UUID}"
 mkdir -p "$SUB_DIR" && chmod 700 "$SUB_DIR"
 echo "created=$(date +%s) session=${HERMES_SESSION_ID:-unknown}" > "$SUB_DIR/pid.lock"
 ```
