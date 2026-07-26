@@ -11,7 +11,7 @@ A skill for [Hermes Agent](https://hermes-agent.nousresearch.com/) that ensures 
 1. **Skill Policy** — Capability matrix blocking persistent writes (memory, skills, cron, config)
 2. **Runtime Guardrails** — Shell history suppression, compound command wrapping (`bash -c`), timestamp TTL sandbox
 3. **Framework Support** — Session-level isolation markers, subagent inheritance protocol
-4. **Post-Session Audit** — 10-step reverse audit pipeline with secure wipe (Python `os.urandom` overwrite → `fsync` → `truncate` → `unlink`)
+4. **Post-Session Audit** — 10+ step reverse audit pipeline with secure wipe (Python `os.urandom` overwrite → `fsync` → `truncate` → `unlink`), including `/tmp/` root and `hermes-snap-*.sh` terminal snapshots
 
 ## Architecture
 
@@ -22,7 +22,7 @@ Phase 2: Isolated execution (pre-hoc defense)
    ↓
 Phase 3: User confirmation gate / 15min TTL
    ↓
-Phase 4: Full reverse audit (10 steps) + secure wipe + session destruction
+Phase 4: Full reverse audit (10+ steps) + secure wipe + session destruction
    ↓
 Phase 5: Audit report + final receipt
 ```
@@ -31,8 +31,9 @@ Phase 5: Audit report + final receipt
 
 | Layer | Protection |
 |-------|-----------|
-| Filesystem | All writes confined to timestamp TTL sandbox; non-sandbox writes detected and wiped |
+| Filesystem | All writes confined to timestamp TTL sandbox; `/tmp/` root scan detects bypasses; non-sandbox writes detected and wiped |
 | Shell History | Every command wrapped with `HISTFILE=/dev/null HISTSIZE=0`; compound statements (`if`/`for`/`while`) via `bash -c '...'` |
+| Terminal Snapshots | `hermes-snap-*.sh` files (plaintext command history + env vars) included in forced secure wipe |
 | Memory | SHA-256 hash diffing against baseline snapshot |
 | Skills/Cron | Detects unauthorized skill/cron creation during session |
 | Processes | Snapshot diffing to detect orphan processes; `.python_history` included |
@@ -89,8 +90,8 @@ Or for emergency skip straight to destruction:
 ```
 
 The agent will then:
-1. Run the 10-step reverse audit (Phase 4)
-2. Securely wipe all temp files
+1. Run the 10+ step reverse audit (Phase 4)
+2. Securely wipe all temp files including terminal snapshots (`hermes-snap-*.sh`)
 3. Present a final audit report (Phase 5)
 4. Destroy the session container
 
