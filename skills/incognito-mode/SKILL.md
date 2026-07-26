@@ -475,12 +475,13 @@ if not os.path.isfile(log_path):
     exit(0)
 
 escaped_sid = re.escape(sid)
-# 匹配: [SESSION_ID]...Web search via BACKEND: \x27query\x27
+# 匹配: [SESSION_ID]...Web search via BACKEND: 'query' (q = chr(39), 避免 \x27 在 Py3.12+ 的 hex escape 警告)
+q = chr(39)  # 单引号 ASCII 39，全版本兼容
 pattern = re.compile(
-    r"(\[" + escaped_sid + r"\].*?Web search via [^:]+: )\x27(.*?)\x27",
+    r"(\[" + escaped_sid + r"\].*?Web search via [^:]+: )" + q + r"(.*?)" + q,
     re.IGNORECASE
 )
-replacement = r"\1\x27[REDACTED_INCOGNITO_QUERY]\x27"
+replacement = r"\1" + q + "[REDACTED_INCOGNITO_QUERY]" + q
 
 try:
     with open(log_path, "r+", encoding="utf-8", errors="ignore") as f:
@@ -810,5 +811,7 @@ Phase 4 物理擦除时，主代理通过递归遍历擦除 `$INCOGNITO_TMP_DIR`
    > ```
    >
    > **Python f-string 中禁止使用单引号**（`f'...'`）——在 `bash -c '...'` 外层单引号 + Hermes `eval` 的双重解析下，`f'` 的 `'` 会提前终结外层字符串。必须使用 `f"..."` 双引号。
+
+   > ⚠️ **Python hex escape 兼容性（v2.5.1）**：`\x27` 等 hex escape 在 Python 3.12+ 触发 `DeprecationWarning`，3.14+ 升级为硬错误 `SyntaxError: bad escape`。Skill 内嵌 Python 代码应使用 `chr(39)` 等 `chr()` 函数替代 hex escape——在所有 Python 3.x 版本下行为一致。
 
    > ⚠️ **禁止过批（Anti-Batching）**：不要将多个独立步骤塞进一个 `bash -c` 块。每个 Phase 1 步骤应使用**独立的 `terminal()` 调用**——这不仅避免了嵌套引号逃逸的地狱，还让每个步骤的错误隔离、可独立重试。经验法则：只要一个 `bash -c` 块内同时包含 Phase 1 的步骤 2 + 步骤 3 + 步骤 6，就已经过批了。
