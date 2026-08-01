@@ -1,8 +1,8 @@
 ---
 name: incognito-mode
-description: "Incognito v2.5.9: sandboxed privacy, log redaction, audit."
-version: 2.5.9
-author: 幻灭文学出版社 + Hermes (17-round cross-audited, process audit degraded, cache+tmp+subagent gaps closed)
+description: "Incognito v2.6.0: sandboxed privacy, log redaction, audit."
+version: 2.6.0
+author: 幻灭文学出版社 + Hermes (18-round cross-audited, process audit degraded, cache+tmp+subagent gaps closed)
 license: MIT
 platforms: [linux, macos]
 metadata:
@@ -10,11 +10,11 @@ metadata:
     tags: [privacy, session, cleanup, ephemeral, sandbox, isolation]
 ---
 
-# 无痕模式 (Incognito Mode) v2.5.9
+# 无痕模式 (Incognito Mode) v2.6.0
 
 浏览器无痕模式的 Hermes 升级版。**四层纵深防御**（Skill 策略 → Runtime 护栏 → Framework 支持 → OS 隔离），确保会话结束后无持久痕迹残留。
 
-> **设计原则**：v1.0「事后擦除」→ v2.0「事前隔离」→ v2.1「事前隔离 + 事后全量反向审计」→ v2.2+「稳健性硬化」→ v2.5+「对照真实架构深度审计修复（R4-R10：时间戳窗口日志清洗、delegation/async_delegations 审计、向量索引哨兵、RedactingFilter 插件、bash 单引号安全）」。完整版本 Changelog 见仓库 README。**不信任 Phase 2 的隔离完美无缺——发现痕迹 → 报告 → 清除 → 二次验证。**
+> **设计原则**：v1.0「事后擦除」→ v2.0「事前隔离」→ v2.1「事前隔离 + 事后全量反向审计」→ v2.2+「稳健性硬化」→ v2.5+「对照真实架构深度审计修复（R4-R10：时间戳窗口日志清洗、delegation/async_delegations 审计、向量索引哨兵、RedactingFilter 插件、bash 单引号安全）」→ v2.6.0「R11 双缺陷修复（4.9r 异常关闭补救协议 + serve 后端插件加载核心 patch）」。完整版本 Changelog 见仓库 README。**不信任 Phase 2 的隔离完美无缺——发现痕迹 → 报告 → 清除 → 二次验证。**
 > ⚡ **三条铁律（每次行动前自检）**：
 > 1. **每条 terminal 命令** → 前缀 `HISTFILE=/dev/null HISTSIZE=0`，无一例外。**复合语句（`if`/`for`/`while`/`case`）必须用 `bash -c '...'` 包装**——直接前缀 `HISTFILE=/dev/null if ...` 会导致 bash 语法错误
 > 2. **从 Phase 2 到 Phase 4** → 必须经过 Phase 3 用户确认门禁，不得跳跃。（TTL 自动销毁需 Framework L2 支持，见 §7）
@@ -26,7 +26,7 @@ metadata:
 
 激活时 Agent 必须向用户展示：
 
-> 🔒 **无痕模式 v2.5.9 已激活**
+> 🔒 **无痕模式 v2.6.0 已激活**
 >
 > **本技能保护范围**：不写持久记忆、所有临时文件在 PID 隔离沙箱中、Shell History 被拦截、禁止 `/compress` 会话摘要落盘（仅保留在内存）、退出时安全覆写擦除。
 >
@@ -178,14 +178,19 @@ Agent **第一条回复**必须执行：
    HISTFILE=/dev/null HISTSIZE=0; echo "session=${HERMES_SESSION_ID:-unknown} created=$(date +%s)" > /tmp/.hermes-incognito-active
    ```
 
-3.6. **Logging RedactingFilter 插件检查（v2.5.7，R8）**：
+3.6. **Logging RedactingFilter 插件检查（v2.6.0 环境感知升级，R11 根因实证）**：
    确认 `$INCOGNITO_HERMES_HOME/plugins/incognito-log-filter/` 存在且启用——它是"事前拦截"第一层防线（哨兵门控 + 内存脱敏，明文不落盘），缺失时仅剩 4.6b 事后擦除。**软警告不阻塞**（Phase 4 照常执行）。
+   > 🔴 **R11 实证（2026-08-01）**：`serve` 后端（desktop 的 backend）启动时 `_plugin_cli_discovery_needed()` 对内置子命令返回 False → `discover_plugins()` 从不执行 → **用户插件在 serve/gateway 模式完全不加载**（filter 永不挂载，无痕期间明文照常落盘）。Hermes 核心修复前，本检查必须同时判定**运行环境**：
    ```bash
    HISTFILE=/dev/null HISTSIZE=0 bash -c '
-   if [ -f "$INCOGNITO_HERMES_HOME/plugins/incognito-log-filter/plugin.yaml" ]; then
+   # 环境感知：检测当前进程是否为 serve/gateway 后端（此类进程不加载用户插件）
+   PROC_ENV=$(ps -eo args | grep -E "hermes_cli\.main (serve|gateway)" | grep -v grep | head -1)
+   if [ -n "$PROC_ENV" ]; then
+     echo "⚠️ 当前环境为 serve/gateway 后端——用户插件不加载（Hermes main.py _plugin_cli_discovery_needed 设计取舍），filter 未生效，本次会话仅 4.6b 事后擦除兜底。核心修复见 §7"
+   elif [ -f "$INCOGNITO_HERMES_HOME/plugins/incognito-log-filter/plugin.yaml" ]; then
      STATUS=$(hermes plugins list 2>/dev/null | grep "incognito-log-filter" | grep -c "enabled")
      if [ "$STATUS" -gt 0 ]; then
-       echo "✅ incognito-log-filter 已启用（register 在 Hermes 进程启动时执行）"
+       echo "✅ incognito-log-filter 已启用（CLI/TUI 环境，register 在进程启动时执行）"
      else
        echo "⚠️ incognito-log-filter 已安装但未启用 → 执行: hermes plugins enable incognito-log-filter"
      fi
@@ -850,6 +855,39 @@ if tmp_dir and os.path.exists(tmp_dir) and tmp_dir.startswith("/tmp/hermes-incog
 >
 > ⚠️ **已知盲区（v2.5.3，R4 审计 FIX-10）**：Phase 5 报告后若 Agent 崩溃/网络中断，4.9 删除命令可能永不执行。缓解：Phase 4 末尾输出「将删除 Session 集」预检清单（`hermes sessions list | grep <sid>`），用户可手动执行 `hermes sessions delete --yes <sid>` 兜底。
 
+---
+
+#### 4.9r 异常关闭补救协议（Recovery Protocol，v2.6.0，R11 现场实证）
+
+> **R11 实证（2026-08-01）**：真实无痕会话异常关闭（`session scope close failed`，4.9 删 session 后主进程 FK 写入失败）→ 4.6b 未执行 → **agent.log 残留 16 条搜索/用户消息明文**。事后用本协议手动兜底清洗成功（幂等可重入）。
+
+**触发条件**：哨兵 `/tmp/.hermes-incognito-active` 存在 **且** 对应 session 已不在 state.db（= 会话异常结束，Phase 4/5 未完成）。
+
+**执行步骤（幂等，可随时重跑）**：
+```bash
+# 1. 读哨兵（session + created）
+SID=$(grep -o "session=[^ ]*" /tmp/.hermes-incognito-active | cut -d= -f2)
+CREATED=$(grep -o "created=[0-9]*" /tmp/.hermes-incognito-active | cut -d= -f2)
+echo "恢复对象: session=$SID created=$CREATED"
+
+# 2. 构造假沙箱 pid.lock（created 复用哨兵值 → 4.6b 时间窗口对齐）
+mkdir -p /tmp/hermes-incognito-recovery && echo "created=$CREATED session=$SID" > /tmp/hermes-incognito-recovery/pid.lock
+
+# 3. 以无痕 sid 身份重跑 4.6b（幂等——重复清洗无害）
+INCOGNITO_TMP_DIR=/tmp/hermes-incognito-recovery INCOGNITO_HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}" HERMES_SESSION_ID=$SID bash -c '<4.6b 代码块>'
+
+# 4. 清理恢复沙箱 + 哨兵
+rm -rf /tmp/hermes-incognito-recovery && rm -f /tmp/.hermes-incognito-active
+
+# 5. 验证：关键词 0 命中
+grep -a -c '<关键词>' ~/.hermes/logs/agent.log
+```
+- 4.6b 代码块即上文 `#### 4.6b` 的完整 bash 代码（从 SKILL.md 提取执行）。
+- 若 session 未删（仍在 state.db）→ 不适用本协议（会话可能仍在运行），先确认会话状态。
+- 补救后向量索引 cron 自动恢复正常（哨兵已清 + session 已删，双重释放）。
+
+> ⚠️ **此协议与 4.9 手动兜底互补**：4.9 兜底解决"session 未删"；本协议解决"明文未洗 + 哨兵残留"。两者独立可分别执行。
+
 - `TRY`: Phase 5 报告后执行（命令见 Phase 5「最后一步」）。
 - `FALLBACK`: 提示手动删除命令。
 - `REPORT`: Phase 5 报告中记录执行结果。
@@ -867,7 +905,7 @@ if tmp_dir and os.path.exists(tmp_dir) and tmp_dir.startswith("/tmp/hermes-incog
 
 Agent 汇总 Phase 4 的 10 步审计结果：
 
-> 🧹 **无痕模式结束 — 全量审计报告 (v2.5.9)**
+> 🧹 **无痕模式结束 — 全量审计报告 (v2.6.0)**
 >
 > | 审计项 | 状态 | 详情 |
 > |------|:--:|------|
@@ -1018,6 +1056,7 @@ Phase 4 物理擦除时，主代理通过递归遍历擦除 `$INCOGNITO_TMP_DIR`
 - [ ] **`[Framework L2]` TTL Auto-Destroy Timer**：宿主框架提供外部 Timer，Phase 3 超时后自动触发 Phase 4 销毁（LLM Agent 不具备自发唤醒能力）
 - [ ] **`[Framework L2]` Execute No-Snapshot Flag**：`terminal()` 支持跳过命令后重写环境快照（`/tmp/hermes-snap-*.sh`），从根上消除 4.6c 的再生降级（v2.5.3 新增）
 - [ ] **`[Framework L2]` Logging RedactingFilter 原生支持**（v2.5.6 更新）：**已通过用户插件落地**（`~/.hermes/plugins/incognito-log-filter/`，哨兵门控 + 内存脱敏，明文不落盘）。框架原生支持（无插件依赖、无需哨兵文件轮询）仍列为可选优化；当前插件方案与 skill 4.6b 事后擦除构成双层防御
+- [ ] **`[Framework L2]` serve/dashboard 后端加载用户插件**（v2.6.0 新增，R11 根因）：`_plugin_cli_discovery_needed()` 对内置子命令返回 False → serve/gateway 从不加载用户插件（hooks/tools/filter 全失效）。**已本地 patch**（`hermes_cli/main.py` cmd_dashboard 显式 `discover_plugins()`，16 行）——待上游合并；`hermes update` 后需重新应用或依赖上游版本
 - [ ] **`[Framework L2]` Ephemeral Session Store**：内存型 Session 引擎，绕过 SQLite WAL 日志和 `.sqlite` 物理文件
 - [ ] **`[Framework L2]` Auto-mount tmpfs**：启动无痕模式时自动挂载 `/dev/shm/hermes-session-<ID>/`，OS 关机/进程终止时物理消失
 - [ ] **`[Framework L2]` CLI Flag `hermes --incognito`**：框架原生无痕模式，自动禁用 Checkpoint、Transcript 归档、RAG 向量索引

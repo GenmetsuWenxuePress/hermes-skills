@@ -64,11 +64,10 @@ cp SKILL.md ~/.hermes/skills/incognito-mode/
 
 Pre-write log interception relies on two optional components (absent → falls back to 4.6b post-scrub, functionality intact):
 
-1. **incognito-log-filter plugin** (recommended) — redacts queries/URLs/user-message previews in memory while the sentinel is active, so plaintext never reaches disk. The plugin ships with the [hermes-incognito-mode](https://github.com/GenmetsuWenxuePress/hermes-incognito-mode) repo (`incognito-log-filter/`):
+1. **incognito-log-filter plugin** (recommended) — redacts queries/URLs/user-message previews in memory while the sentinel is active, so plaintext never reaches disk:
    ```bash
-   # Get the plugin from the companion repo
-   git clone https://github.com/GenmetsuWenxuePress/hermes-incognito-mode.git /tmp/him
-   cp -r /tmp/him/incognito-log-filter ~/.hermes/plugins/
+   # Copy the plugin into your Hermes user plugins dir
+   cp -r incognito-log-filter ~/.hermes/plugins/
    hermes plugins enable incognito-log-filter
    ```
    > The plugin's `register()` runs at Hermes process startup — restart Hermes after enabling. Phase 1 step 3.6 auto-checks plugin status (soft warning, non-blocking).
@@ -117,6 +116,11 @@ The agent will then:
 > 💡 **15-minute TTL reminder**: if you walk away mid-session, the agent will prompt you to end it after 15 minutes of inactivity. Auto-destruction requires `[Framework L2]` support (see §Limitations in [README_CN.md](README_CN.md)).
 
 Then start a **new session** (`/new`) to ensure the old session container is fully purged.
+
+### v2.6.0
+- **4.9r recovery protocol** — abnormal-close recovery: sentinel residue + session deleted → re-run 4.6b idempotently (field-tested: 16 plaintext lines scrubbed)
+- **Env-aware plugin check (3.6)** — serve/gateway backends never load user plugins (`_plugin_cli_discovery_needed` skips built-ins); check now detects the runtime env
+- **Hermes core patch** — cmd_dashboard explicitly calls `discover_plugins()` so desktop/serve loads user plugins (16 lines, pending upstream merge)
 
 ## Changelog
 

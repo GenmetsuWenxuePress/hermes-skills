@@ -64,11 +64,10 @@ cp SKILL.md ~/.hermes/skills/incognito-mode/
 
 无痕模式的**事前日志拦截**依赖两个可选组件（缺失时降级为 4.6b 事后擦除，功能不中断）：
 
-1. **incognito-log-filter 插件**（推荐）— 哨兵激活时在内存中脱敏查询/URL/用户消息 preview，明文不落盘。插件随 [hermes-incognito-mode](https://github.com/GenmetsuWenxuePress/hermes-incognito-mode) 仓库分发（`incognito-log-filter/` 目录）：
+1. **incognito-log-filter 插件**（推荐）— 哨兵激活时在内存中脱敏查询/URL/用户消息 preview，明文不落盘：
    ```bash
-   # 从配套仓库获取插件
-   git clone https://github.com/GenmetsuWenxuePress/hermes-incognito-mode.git /tmp/him
-   cp -r /tmp/him/incognito-log-filter ~/.hermes/plugins/
+   # 复制插件到 Hermes 用户插件目录
+   cp -r incognito-log-filter ~/.hermes/plugins/
    hermes plugins enable incognito-log-filter
    ```
    > 插件 `register()` 在 Hermes 进程启动时执行——启用后需重启 Hermes 生效。Phase 1 步骤 3.6 会自动检查插件状态（软警告不阻塞）。
@@ -143,6 +142,11 @@ Agent 随后会执行：
 | Qubes OS | VM 级隔离 | 最强隔离性 | 硬件要求高，学习曲线陡 |
 
 **推荐组合**：本 Skill（Agent 层）+ 私有化模型 Ollama（API 层）+ `swapoff -a`（OS 层）= 接近 Tails 级别的隐私保护，同时保持日常开发便利性。
+
+### v2.6.0
+- **4.9r 异常关闭补救协议** — 哨兵残留 + session 已删 → 幂等重跑 4.6b（现场实证：16 条明文清洗成功）
+- **3.6 环境感知检查** — serve/gateway 后端不加载用户插件（`_plugin_cli_discovery_needed` 跳过内置命令），检查现按运行环境判定
+- **Hermes 核心 patch** — cmd_dashboard 显式 `discover_plugins()`，desktop/serve 可加载用户插件（16 行，待上游合并）
 
 ## 更新日志
 
