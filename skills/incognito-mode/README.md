@@ -1,4 +1,4 @@
-# 🔒 Hermes Incognito Mode v2.5.1
+# 🔒 Hermes Incognito Mode v2.5.9
 
 [中文版 (Chinese)](README_CN.md) | [English](README.md)
 
@@ -34,11 +34,14 @@ Phase 5: Audit report + final receipt
 | Filesystem | All writes confined to timestamp TTL sandbox; `/tmp/` root scan detects bypasses; non-sandbox writes detected and wiped |
 | Shell History | Every command wrapped with `HISTFILE=/dev/null HISTSIZE=0`; compound statements (`if`/`for`/`while`) via `bash -c '...'` |
 | Terminal Snapshots | `hermes-snap-*.sh` files (plaintext command history + env vars) included in forced secure wipe |
-| Web Cache | `~/.hermes/cache/web/`, `screenshots/`, `videos/` symlinked to sandbox — crash-safe pre-hoc isolation |
+| Web Cache | 7 user-data dirs under `~/.hermes/cache/` (web/screenshots/videos/images/audio/documents/vision) symlinked to sandbox — crash-safe pre-hoc isolation |
+| Log Redaction | `agent.log` queries/user-message plaintext scrubbed to `[REDACTED_INCOGNITO_QUERY]` by **timestamp window**, covering 7 search providers; v2.5.6+ the **Logging RedactingFilter plugin** intercepts in memory pre-write (plaintext never hits disk), 4.6b post-scrub as backstop |
+| Vector Index | Sentinel file (`/tmp/.hermes-incognito-active`) fine-grained-skips `active_sessions` source — incognito content never enters the persistent vector store; 4.9 session delete implicitly releases |
 | Memory | SHA-256 hash diffing against baseline snapshot |
 | Skills/Cron | Detects unauthorized skill/cron creation during session |
 | Processes | Snapshot diffing to detect orphan processes; `.python_history` included |
-| Subagents | Residual subagent sandboxes audited during cleanup |
+| Subagents | Residual subagent sandboxes + live transcripts + `async_delegations` table audited during cleanup |
+| Crash Residue | `interrupted_turns.json` (desktop auto-continue markers) cleaned by sid |
 | Session | Container destruction as final line of defense |
 
 ### Known blind spots (informed consent)
@@ -56,6 +59,21 @@ git clone https://github.com/GenmetsuWenxuePress/hermes-incognito-mode.git ~/.he
 # Or copy manually
 cp SKILL.md ~/.hermes/skills/incognito-mode/
 ```
+
+## Dependencies (v2.5.6+)
+
+Pre-write log interception relies on two optional components (absent → falls back to 4.6b post-scrub, functionality intact):
+
+1. **incognito-log-filter plugin** (recommended) — redacts queries/URLs/user-message previews in memory while the sentinel is active, so plaintext never reaches disk. The plugin ships with the [hermes-incognito-mode](https://github.com/GenmetsuWenxuePress/hermes-incognito-mode) repo (`incognito-log-filter/`):
+   ```bash
+   # Get the plugin from the companion repo
+   git clone https://github.com/GenmetsuWenxuePress/hermes-incognito-mode.git /tmp/him
+   cp -r /tmp/him/incognito-log-filter ~/.hermes/plugins/
+   hermes plugins enable incognito-log-filter
+   ```
+   > The plugin's `register()` runs at Hermes process startup — restart Hermes after enabling. Phase 1 step 3.6 auto-checks plugin status (soft warning, non-blocking).
+
+2. **index_all.py sentinel support** (optional) — if you run the vector-index cron (`~/.hermes/scripts/index_all.py`), upgrade its `incognito_active()` to v2.5.5 semantics (fine-grained skip + session existence check). The incognito session creates/releases the sentinel automatically; vector jobs are never blocked.
 
 ## Usage
 
@@ -102,6 +120,34 @@ Then start a **new session** (`/new`) to ensure the old session container is ful
 
 ## Changelog
 
+### v2.5.9
+- **P0 fix: bash single-quote safety** — bare `'` inside 4.6b's `python3 -c '...'` (comments/`(["'])` regex) broke the bash wrapper and silently failed on real terminal runs — now chr()-concatenated; 30/30 bash blocks verified
+- **Release compliance** — description ≤60 chars, `platforms` field, generalized example wording
+
+### v2.5.8
+- **async_delegations table audit** — delegate_task briefs/results persist into state.db (4.9 doesn't clear them); now deleted by sid
+- **unset timing fix** — moved after 4.8 so 4.6b/4.7b/4.8 never lose env vars silently
+
+### v2.5.7
+- **Plugin dependency check (step 3.6)** — Phase 1 explicitly verifies incognito-log-filter is enabled, preventing silent loss of the pre-write defense
+
+### v2.5.6
+- **Logging RedactingFilter plugin** — sentinel-gated, in-memory redaction; pre-write interception + 4.6b post-scrub double defense
+- **interrupted_turns.json audit (4.1c)** — crash-residue prompt plaintext cleaned by sid
+
+### v2.5.5
+- **agent.log dual-blindspot fix (R6 field-tested)** — covers 7 search-provider log formats + `conversation turn` user-message plaintext (repr double-quote compatible) + URL lines
+- **Sentinel semantics rework** — fine-grained skip (only `active_sessions` source) + 4.9 session delete implicitly releases
+
+### v2.5.4
+- **profile-safe completion** — 4 runtime paths now use `$INCOGNITO_HERMES_HOME`; recovery block restores the variable
+
+### v2.5.3
+- **R4 deep-audit fixes** — 4.6b timestamp-window scrub (old regex 0-hit silent failure), 4.1a delegation live-transcript audit, vector-index sentinel, Phase 4 recovery split, 7-dir cache redirect, 4.1 exclusion list, capability matrix (gbrain/agy/execute_code), 4.6c snap re-wipe
+
+### v2.5.2
+- **Skill audit noise reduction** — 4.4 find excludes `.curator_state`/`.bundled_manifest`/`.usage.json` metadata
+
 ### v2.5.1
 - **Export persistence fix** — Phase 1 split into two `terminal()` calls: simple command chain for `export` (persists across calls), then `bash -c` for idempotency logic (subshell-safe). Fixes broken `$INCOGNITO_TMP_DIR` in long sessions.
 
@@ -139,4 +185,4 @@ MIT — see [LICENSE](LICENSE)
 
 ## Author
 
-幻灭文学出版社 + Hermes (10-round cross-audited)
+幻灭文学出版社 + Hermes (17-round cross-audited)
