@@ -122,6 +122,12 @@ Then start a **new session** (`/new`) to ensure the old session container is ful
 - **Env-aware plugin check (3.6)** — serve/gateway backends never load user plugins (`_plugin_cli_discovery_needed` skips built-ins); check now detects the runtime env
 - **Hermes core patch** — cmd_dashboard explicitly calls `discover_plugins()` so desktop/serve loads user plugins (16 lines, pending upstream merge)
 
+### v2.6.1
+- **Bare-URL scrub (4.6b)** — R12: `Firecrawl scraping:`/`tools.web_tools:` lines carry bare URLs (no quotes); new `bare_url_re` covers them in the time window
+- **Domain-wide full-file scrub (4.6b-2)** — multi-line JSON tool-error logs (`"url": ...` on timestamp-less continuation lines) now scrubbed by sensitive-domain regex over the whole log file (idempotent, `DOMAINS_PROVIDED` flag)
+- **Parallel skill-freeze audit (4.4)** — concurrent processes/curator can persist session knowledge into skills mid-session; dual-criteria (mtime window + content relevance) detection + precise rollback
+- **Phase 5 out-of-window residue line** — reports historical plaintext outside the 4.6b window for user-confirmed manual scrub
+
 ## Changelog
 
 ### v2.5.9

@@ -1,8 +1,8 @@
 ---
 name: incognito-mode
-description: "Incognito v2.6.0: sandboxed privacy, log redaction, audit."
-version: 2.6.0
-author: 幻灭文学出版社 + Hermes (18-round cross-audited, process audit degraded, cache+tmp+subagent gaps closed)
+description: "Incognito v2.6.1: sandboxed privacy, log redaction, audit."
+version: 2.6.1
+author: 幻灭文学出版社 + Hermes (19-round cross-audited, process audit degraded, cache+tmp+subagent gaps closed)
 license: MIT
 platforms: [linux, macos]
 metadata:
@@ -10,11 +10,11 @@ metadata:
     tags: [privacy, session, cleanup, ephemeral, sandbox, isolation]
 ---
 
-# 无痕模式 (Incognito Mode) v2.6.0
+# 无痕模式 (Incognito Mode) v2.6.1
 
 浏览器无痕模式的 Hermes 升级版。**四层纵深防御**（Skill 策略 → Runtime 护栏 → Framework 支持 → OS 隔离），确保会话结束后无持久痕迹残留。
 
-> **设计原则**：v1.0「事后擦除」→ v2.0「事前隔离」→ v2.1「事前隔离 + 事后全量反向审计」→ v2.2+「稳健性硬化」→ v2.5+「对照真实架构深度审计修复（R4-R10：时间戳窗口日志清洗、delegation/async_delegations 审计、向量索引哨兵、RedactingFilter 插件、bash 单引号安全）」→ v2.6.0「R11 双缺陷修复（4.9r 异常关闭补救协议 + serve 后端插件加载核心 patch）」。完整版本 Changelog 见仓库 README。**不信任 Phase 2 的隔离完美无缺——发现痕迹 → 报告 → 清除 → 二次验证。**
+> **设计原则**：v1.0「事后擦除」→ v2.0「事前隔离」→ v2.1「事前隔离 + 事后全量反向审计」→ v2.2+「稳健性硬化」→ v2.5+「对照真实架构深度审计修复（R4-R10：时间戳窗口日志清洗、delegation/async_delegations 审计、向量索引哨兵、RedactingFilter 插件、bash 单引号安全）」→ v2.6.0「R11 双缺陷修复（4.9r 异常关闭补救协议 + serve 后端插件加载核心 patch）」→ v2.6.1「R12 实测缺陷修复（裸 URL 正则 + 敏感域全文件清扫 + 并行进程 skill 固化审计 + Phase 5 窗口外残留提示）」。完整版本 Changelog 见仓库 README。**不信任 Phase 2 的隔离完美无缺——发现痕迹 → 报告 → 清除 → 二次验证。**
 > ⚡ **三条铁律（每次行动前自检）**：
 > 1. **每条 terminal 命令** → 前缀 `HISTFILE=/dev/null HISTSIZE=0`，无一例外。**复合语句（`if`/`for`/`while`/`case`）必须用 `bash -c '...'` 包装**——直接前缀 `HISTFILE=/dev/null if ...` 会导致 bash 语法错误
 > 2. **从 Phase 2 到 Phase 4** → 必须经过 Phase 3 用户确认门禁，不得跳跃。（TTL 自动销毁需 Framework L2 支持，见 §7）
@@ -26,7 +26,7 @@ metadata:
 
 激活时 Agent 必须向用户展示：
 
-> 🔒 **无痕模式 v2.6.0 已激活**
+> 🔒 **无痕模式 v2.6.1 已激活**
 >
 > **本技能保护范围**：不写持久记忆、所有临时文件在 PID 隔离沙箱中、Shell History 被拦截、禁止 `/compress` 会话摘要落盘（仅保留在内存）、退出时安全覆写擦除。
 >
@@ -552,6 +552,12 @@ HISTFILE=/dev/null HISTSIZE=0 hermes cron list 2>/dev/null
 - `REPORT`: 记录汇报结果和用户决策。
 - `CONTINUE`
 
+> ⚠️ **并行进程 skill 固化审计（v2.6.1，R12 架构盲区）**：无痕模式只能约束自身（不调 memory / skill_manage），**无法阻止并行进程 / curator 在会话进行中把会话知识固化进持久 skill**（新增章节 + references 文件，明文泄漏到持久技能库——R12 实测：会话中一个既有 skill 被后台进程写入新章节 + 2 个 references）。审计要点：
+> 1. `find -newer pid.lock` 的命中**不仅包括新建文件，也包括 mtime 在窗口内的既有 skill 修改**（新增章节/文件）——逐条检查内容相关性
+> 2. 判定标准（双重）：**① mtime 在会话窗口内**（`-newer pid.lock` 已覆盖）**② 内容与本会话任务直接相关**（站点/方法/结论出现在会话中）——两者都满足 = 会话残留
+> 3. 回滚方式：删除新增章节（精确行区间）+ 覆写删除新增 references 文件——**保留 skill 原有内容**（历史 references 不受影响）
+> 4. 若确认被固化，必须向用户汇报并执行回滚（同上 TRY 的等待确认流程）
+
 #### 4.5 进程审计 — 已知限制 + `.python_history` 补充审计 + 子代理验证
 
 > ⚠️ **设计失效声明（v2.4.0）**：原 PID 快照 diff 方案在此运行模型下**不可用**——Hermes `terminal()` 每次调用独立 bash 进程，Phase 4 执行 `ps` 快照时只能抓到 Phase 4 自身瞬间存在的并行终端调用，它们在你读到输出前就已退出。这不是 bug，是架构层面的设计失效。
@@ -693,9 +699,14 @@ if sid:
     )
 turn_repl = r"\1" + q + "[REDACTED_INCOGNITO_QUERY]" + q
 
-# v2.5.5: 通用 URL 明文（时间窗口内，如 scraping/truncated/Blocked URL 行）
+# v2.5.5: 引号包裹 URL 明文（时间窗口内，如 scraping/truncated/Blocked URL 行）
 url_re = re.compile(q + r"((?:https?://)[^" + q + r"]*)" + q)
 url_repl = q + "[REDACTED_INCOGNITO_URL]" + q
+
+# v2.6.1: 裸 URL 明文（R12 实测：Firecrawl scraping: / tools.web_tools: 行是裸 URL 无引号，旧正则 0 命中）
+# 字符类用 dq+q 拼接——禁止裸单引号（bash 单引号包裹，R10 教训）
+bare_url_re = re.compile(r"https?://[^\s\)" + dq + q + r"<>]+")
+bare_url_repl = "https://[REDACTED_INCOGNITO_URL]"
 
 def clean_log(path):
     if not os.path.isfile(path):
@@ -728,6 +739,9 @@ def clean_log(path):
             elif url_re.search(ln):
                 lines[i] = url_re.sub(url_repl, ln)
                 hits += 1
+            elif bare_url_re.search(ln):
+                lines[i] = bare_url_re.sub(bare_url_repl, ln)
+                hits += 1
         if hits:
             f.seek(0)
             f.writelines(lines)
@@ -748,6 +762,49 @@ for name in ["agent.log", "agent.log.1", "agent.log.2", "agent.log.3"]:
 - `FALLBACK`: 报告未清洗的查询条数，提示手动审查 `agent.log*`。
 - `REPORT`: 记录清洗条数（含全部轮转文件）。
 - `CONTINUE`
+
+#### 4.6b-2 敏感域全文件清扫（v2.6.1，R12 实测缺陷修复）
+> 🔴 **R12 实测（2026-08-02）**：`web_extract` 报错时 `agent.tool_executor` 写**多行 JSON 日志**（`"url": "https://..."` 在无时间戳的续行）——4.6b 的 `prefix_re` 只匹配行首有时间戳的行，JSON 续行从不参与清洗 → URL 明文残留。修复：**敏感域全文件清扫**（不依赖时间戳行，对 agent.log 全文 + 轮转文件执行，幂等）。
+
+```bash
+python3 -c '
+import os, re
+
+# 敏感域清单：从本会话 web 活动提取（Agent 执行时按实际命中的站点域填入，用 | 连接）
+# ⚠️ 域名字符串禁止含单引号（bash 单引号包裹，R10 教训）——用双引号或 \\x27 转义
+# v2.6.1: 独立标志——Agent 填入真实域后改为 True（避免误判占位符）
+DOMAINS_PROVIDED = False
+sensitive_domains = r"example_site_a|example_site_b"
+if not DOMAINS_PROVIDED:
+    print("⚠️ 未提供敏感域清单——跳过全文件清扫（Agent 应从会话 web 活动提取站点域后重跑）")
+    exit(0)
+
+# 全文件清扫：不依赖时间戳行（覆盖多行 JSON 等无前缀行），幂等
+dom_re = re.compile(r"https?://(?:" + sensitive_domains + r")[^\s\")<" + chr(39) + r"]*")
+dom_repl = "https://[REDACTED_INCOGNITO_URL]"
+hermes_home = os.environ.get("INCOGNITO_HERMES_HOME", os.path.expanduser("~/.hermes"))
+
+for name in ["agent.log", "agent.log.1", "agent.log.2", "agent.log.3"]:
+    path = os.path.join(hermes_home, "logs", name)
+    if not os.path.isfile(path):
+        continue
+    hits = 0
+    with open(path, "r+", encoding="utf-8", errors="ignore") as f:
+        lines = f.readlines()
+        for i, ln in enumerate(lines):
+            if dom_re.search(ln):
+                lines[i] = dom_re.sub(dom_repl, ln)
+                hits += 1
+        if hits:
+            f.seek(0)
+            f.writelines(lines)
+            f.truncate()
+    print("✅ " + name + " 敏感域清扫 " + str(hits) + " 行")
+'
+```
+- `TRY`: Agent 从本会话 web 活动（web_search/web_extract 结果中的站点域）提取域名 → 填入 `sensitive_domains` → 执行全文件清扫。
+- `ON FAILURE`: 域清单为空 → 跳过并报告（不阻塞——4.6b 已覆盖时间戳行）。
+- `REPORT` & `CONTINUE`
 
 #### 4.7 Git / 项目目录审计
 在项目根目录（若有）检查未提交变更。若当前不在 Git 仓库中，此步自动跳过。
@@ -905,7 +962,7 @@ grep -a -c '<关键词>' ~/.hermes/logs/agent.log
 
 Agent 汇总 Phase 4 的 10 步审计结果：
 
-> 🧹 **无痕模式结束 — 全量审计报告 (v2.6.0)**
+> 🧹 **无痕模式结束 — 全量审计报告 (v2.6.1)**
 >
 > | 审计项 | 状态 | 详情 |
 > |------|:--:|------|
@@ -924,6 +981,8 @@ Agent 汇总 Phase 4 的 10 步审计结果：
 > | 4.8 沙箱物理安全擦除 | ✅/❌ | [Python os.urandom 覆写 + 物理删除完成] |
 > | 4.9 Session 容器销毁 | ✅/⚠️/❌ | [会话已删除/需手动执行 hermes sessions delete] |
 > | 4.10 二次验证 | ✅/❌ | [N 项复查通过/M 项仍有残留] |
+>
+> **窗口外历史残留检查（v2.6.1，R12）**：⚠️ 若发现 **4.6b 时间窗口之前**的历史残留（上一轮未完成会话的明文/URL/用户消息），列出行数与位置——4.6b 设计上不越界清洗历史行，**需用户确认后手动清扫**（全文敏感域清扫 + msg 脱敏，参考 4.6b-2 的域清扫方式）。无残留则填「无」。
 >
 > **综合判定**：
 > - 🟢 全部通过 → 🔒 无痕会话已关闭，零痕迹残留

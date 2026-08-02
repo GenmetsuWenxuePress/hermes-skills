@@ -148,6 +148,12 @@ Agent 随后会执行：
 - **3.6 环境感知检查** — serve/gateway 后端不加载用户插件（`_plugin_cli_discovery_needed` 跳过内置命令），检查现按运行环境判定
 - **Hermes 核心 patch** — cmd_dashboard 显式 `discover_plugins()`，desktop/serve 可加载用户插件（16 行，待上游合并）
 
+### v2.6.1
+- **裸 URL 清扫（4.6b）** — R12 实测：`Firecrawl scraping:`/`tools.web_tools:` 行是裸 URL（无引号），新增 `bare_url_re` 覆盖时间窗口
+- **敏感域全文件清扫（4.6b-2）** — 多行 JSON 工具错误日志（无时间戳续行的 `"url": ...`）用敏感域正则全文清扫（幂等，`DOMAINS_PROVIDED` 标志）
+- **并行 skill 固化审计（4.4）** — 并行进程/curator 会话中把会话知识固化进持久 skill；双重判定（mtime 窗口 + 内容相关性）+ 精确回滚
+- **Phase 5 窗口外残留提示行** — 报告 4.6b 窗口外的历史明文，供用户确认后手动清扫
+
 ## 更新日志
 
 ### v2.5.9
