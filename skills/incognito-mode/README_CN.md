@@ -163,6 +163,11 @@ Agent 随后会执行：
 - **章节排序** — 4.1c 移至 4.1b 后；4.6c 移至 4.6b-2 后
 - **R11 根因重定位** — serve 后端本会加载插件（cmd_dashboard 原有 discover_plugins）；删除多余 16 行 patch；真正根因是 filter 挂载位置
 
+### v2.6.3
+- **完全链式清洗（4.6b）** — query/sb/turn 替换与 URL 清洗不再互斥，URL 无条件执行（row_changed 合并计数，一行最多 +1）
+- **文档同步** — 能力矩阵 + Phase 4 流程总览更新 v2.6.2 哨兵语义（active_sessions + sessions）
+- **R14 实证** — filter 挂载时机（setup_logging 模块级先于插件 register）、register 幂等、pid.lock 格式一致性
+
 ## 更新日志
 
 ### v2.5.9

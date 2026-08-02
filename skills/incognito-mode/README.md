@@ -137,6 +137,11 @@ Then start a **new session** (`/new`) to ensure the old session container is ful
 - **Section ordering** — 4.1c moved after 4.1b; 4.6c after 4.6b-2
 - **R11 root-cause relocation** — serve backend DOES load plugins (cmd_dashboard already called discover_plugins); the redundant 16-line patch was removed; real root cause was the filter mount point
 
+### v2.6.3
+- **Fully chained scrub (4.6b)** — query/sb/turn replacement and URL scrub no longer mutually exclusive; URL cleaning runs unconditionally (row_changed merged counting, one hit per row max)
+- **Doc sync** — capability matrix + Phase 4 overview updated for the v2.6.2 sentinel semantics (active_sessions + sessions)
+- **R14 field verification** — filter mount timing proven (setup_logging runs at module level before plugin register), register idempotency proven, pid.lock format consistency confirmed
+
 ## Changelog
 
 ### v2.5.9

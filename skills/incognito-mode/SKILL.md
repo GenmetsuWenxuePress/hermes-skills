@@ -1,8 +1,8 @@
 ---
 name: incognito-mode
-description: "Incognito v2.6.2: sandboxed privacy, log redaction, audit."
-version: 2.6.2
-author: 幻灭文学出版社 + Hermes (20-round cross-audited, process audit degraded, cache+tmp+subagent gaps closed)
+description: "Incognito v2.6.3: sandboxed privacy, log redaction, audit."
+version: 2.6.3
+author: 幻灭文学出版社 + Hermes (21-round cross-audited, process audit degraded, cache+tmp+subagent gaps closed)
 license: MIT
 platforms: [linux, macos]
 metadata:
@@ -10,11 +10,11 @@ metadata:
     tags: [privacy, session, cleanup, ephemeral, sandbox, isolation]
 ---
 
-# 无痕模式 (Incognito Mode) v2.6.2
+# 无痕模式 (Incognito Mode) v2.6.3
 
 浏览器无痕模式的 Hermes 升级版。**四层纵深防御**（Skill 策略 → Runtime 护栏 → Framework 支持 → OS 隔离），确保会话结束后无持久痕迹残留。
 
-> **设计原则**：v1.0「事后擦除」→ v2.0「事前隔离」→ v2.1「事前隔离 + 事后全量反向审计」→ v2.2+「稳健性硬化」→ v2.5+「对照真实架构深度审计修复（R4-R10：时间戳窗口日志清洗、delegation/async_delegations 审计、向量索引哨兵、RedactingFilter 插件、bash 单引号安全）」→ v2.6.0「R11 双缺陷修复（4.9r 异常关闭补救协议 + serve 后端插件加载核心 patch）」→ v2.6.1「R12 实测缺陷修复（裸 URL 正则 + 敏感域全文件清扫 + 并行进程 skill 固化审计 + Phase 5 窗口外残留提示）」→ v2.6.2「R13 双轨复检（agy 独立审查）10 项修复：LogFilter 挂 root handlers（原挂 root logger 自身→子 logger 全量静默失效）、4.9r 去 bash -c 嵌套、URL 链式替换、index_all 哨兵跳过 sessions 源、4.6b-2 占位符检测、章节编号修正（4.1c/4.6c 顺序）、R11 根因重定位（serve 插件本会加载，删除多余 patch）」。完整版本 Changelog 见仓库 README。**不信任 Phase 2 的隔离完美无缺——发现痕迹 → 报告 → 清除 → 二次验证。**
+> **设计原则**：v1.0「事后擦除」→ v2.0「事前隔离」→ v2.1「事前隔离 + 事后全量反向审计」→ v2.2+「稳健性硬化」→ v2.5+「对照真实架构深度审计修复（R4-R10：时间戳窗口日志清洗、delegation/async_delegations 审计、向量索引哨兵、RedactingFilter 插件、bash 单引号安全）」→ v2.6.0「R11 双缺陷修复（4.9r 异常关闭补救协议 + serve 后端插件加载核心 patch）」→ v2.6.1「R12 实测缺陷修复（裸 URL 正则 + 敏感域全文件清扫 + 并行进程 skill 固化审计 + Phase 5 窗口外残留提示）」→ v2.6.2「R13 双轨复检（agy 独立审查）10 项修复：LogFilter 挂 root handlers（原挂 root logger 自身→子 logger 全量静默失效）、4.9r 去 bash -c 嵌套、URL 链式替换、index_all 哨兵跳过 sessions 源、4.6b-2 占位符检测、章节编号修正（4.1c/4.6c 顺序）、R11 根因重定位（serve 插件本会加载，删除多余 patch）」→ v2.6.3「R14 质疑复检：4.6b query/turn 与 URL 清洗完全链式化（原只修 URL 内部互斥）、能力矩阵/流程总览同步 v2.6.2 哨兵语义、filter 挂载时机实证（setup_logging 先于 register）、register 幂等实证」。完整版本 Changelog 见仓库 README。**不信任 Phase 2 的隔离完美无缺——发现痕迹 → 报告 → 清除 → 二次验证。**
 > ⚡ **三条铁律（每次行动前自检）**：
 > 1. **每条 terminal 命令** → 前缀 `HISTFILE=/dev/null HISTSIZE=0`，无一例外。**复合语句（`if`/`for`/`while`/`case`）必须用 `bash -c '...'` 包装**——直接前缀 `HISTFILE=/dev/null if ...` 会导致 bash 语法错误
 > 2. **从 Phase 2 到 Phase 4** → 必须经过 Phase 3 用户确认门禁，不得跳跃。（TTL 自动销毁需 Framework L2 支持，见 §7）
@@ -26,7 +26,7 @@ metadata:
 
 激活时 Agent 必须向用户展示：
 
-> 🔒 **无痕模式 v2.6.2 已激活**
+> 🔒 **无痕模式 v2.6.3 已激活**
 >
 > **本技能保护范围**：不写持久记忆、所有临时文件在 PID 隔离沙箱中、Shell History 被拦截、禁止 `/compress` 会话摘要落盘（仅保留在内存）、退出时安全覆写擦除。
 >
@@ -71,7 +71,7 @@ metadata:
 
 `read_file`、`search_files`、`session_search`（仅读取历史，不索引当前会话）、`skill_view`、`clarify`
 
-> ⚠️ **session_search 说明修正（v2.5.3）**：Hermes 的 `session_search` 是 **SQLite FTS5 本地查询**（SessionDB），本身不触发 RAG/向量 Embedding。向量索引由独立 cron（`index_all.py`）控制——无痕会话通过**哨兵文件**（Phase 1 步骤 3.5 创建 `/tmp/.hermes-incognito-active`，Phase 5 删除；v2.5.5 起 index_all.py 只跳过 active_sessions 源，4.9 删 session 即隐式释放）排除。
+> ⚠️ **session_search 说明修正（v2.5.3）**：Hermes 的 `session_search` 是 **SQLite FTS5 本地查询**（SessionDB），本身不触发 RAG/向量 Embedding。向量索引由独立 cron（`index_all.py`）控制——无痕会话通过**哨兵文件**（Phase 1 步骤 3.5 创建 `/tmp/.hermes-incognito-active`，Phase 5 删除；v2.6.2 起 index_all.py 哨兵激活时跳过 active_sessions **及 sessions** 两源，4.9 删 session 即隐式释放）排除。
 
 ---
 
@@ -85,14 +85,16 @@ Phase 2: 无痕隔离执行（事前防线，禁止新服务/禁止/compress落�
 Phase 3: 用户确认门禁 / TTL (Framework L2) (解耦自杀死锁)
    ↓  ← 用户选择「确认销毁」/「/incognito abort」
 Phase 4: 反向全量审计 + 逐项清除 (TRY→FALLBACK) + 二次验证（事后防线）
-   ├ 4.1 文件系统审计 + /tmp/根目录  ├ 4.1a delegation transcripts 审计
-   ├ 4.1c interrupted_turns 审计
+   ├ 4.1 文件系统审计            ├ 4.1a delegation transcripts 审计
+   ├ 4.1b /tmp/根目录审计         ├ 4.1c interrupted_turns 审计
    ├ 4.2 Shell History 审计
    ├ 4.3 Memory 审计 (SHA-256 哈希比对)├ 4.4 Skill/Cron 审计
    ├ 4.5 进程/python_history/子代理审计 ├ 4.6 环境变量/配置审计
-   ├ 4.6b agent.log 清洗           ├ 4.6c hermes-snap 二次清除
-   ├ 4.7 Git/项目审计               ├ 4.8 沙箱 Python 覆写安全擦除
-   ├ 4.9 Session 容器销毁            └ 4.10 二次验证
+   ├ 4.6b agent.log 清洗         ├ 4.6b-2 敏感域全文件清扫
+   ├ 4.6c hermes-snap 二次清除   ├ 4.7 Git/项目审计
+   ├ 4.7b 缓存恢复               ├ 4.8 沙箱 Python 覆写安全擦除
+   ├ 4.9 Session 容器销毁         ├ 4.9r 异常关闭补救协议
+   └ 4.10 二次验证
    ↓
 Phase 5: 全量审计报告 + 最终确认回执
 ```
@@ -693,28 +695,29 @@ def clean_log(path):
             q_m = query_re.match(ln)
             sb_m = sb_re.match(ln)
             t_m = turn_re.match(ln) if turn_re else None
+            # v2.6.3 改进（R14 复检）：query/sb/turn 替换与 URL 清洗**完全链式**——
+            # URL 清洗无条件执行（不依赖 query/turn 是否匹配），防未来日志格式
+            # 变化导致"query 行内额外 URL 漏洗"。row_changed 合并计数（一行最多 +1）。
+            row_changed = False
             if q_m:
-                lines[i] = query_re.sub(query_repl, ln)
-                hits += 1
+                ln = query_re.sub(query_repl, ln)
+                row_changed = True
             elif sb_m:
-                lines[i] = sb_re.sub(sb_repl, ln)
-                hits += 1
+                ln = sb_re.sub(sb_repl, ln)
+                row_changed = True
             elif t_m:
-                lines[i] = turn_re.sub(turn_repl, ln)
+                ln = turn_re.sub(turn_repl, ln)
+                row_changed = True
+            # v2.6.2（R13 ISSUE-3）：url_re 与 bare_url_re 链式（混合引号行全洗）
+            if url_re.search(ln):
+                ln = url_re.sub(url_repl, ln)
+                row_changed = True
+            if bare_url_re.search(ln):
+                ln = bare_url_re.sub(bare_url_repl, ln)
+                row_changed = True
+            if row_changed:
+                lines[i] = ln
                 hits += 1
-            # v2.6.2 修正（R13 审查 ISSUE-3）：URL 两个分支不能 elif 互斥——同一行可能同时
-            # 含引号包裹 URL 与裸 URL，互斥会导致裸 URL 漏洗。改为链式替换。
-            else:
-                modified = False
-                if url_re.search(ln):
-                    ln = url_re.sub(url_repl, ln)
-                    modified = True
-                if bare_url_re.search(ln):
-                    ln = bare_url_re.sub(bare_url_repl, ln)
-                    modified = True
-                if modified:
-                    lines[i] = ln
-                    hits += 1
         if hits:
             f.seek(0)
             f.writelines(lines)
@@ -967,7 +970,7 @@ grep -a -c '<关键词>' "$INCOGNITO_HERMES_HOME/logs/agent.log"
 
 Agent 汇总 Phase 4 的 10 步审计结果：
 
-> 🧹 **无痕模式结束 — 全量审计报告 (v2.6.2)**
+> 🧹 **无痕模式结束 — 全量审计报告 (v2.6.3)**
 >
 > | 审计项 | 状态 | 详情 |
 > |------|:--:|------|
