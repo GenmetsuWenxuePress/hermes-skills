@@ -14,7 +14,7 @@ hermes skills install incognito-mode
 
 | 技能 | 版本 | 说明 |
 |------|------|------|
-| [incognito-mode](skills/incognito-mode/) | v2.6.1 | 无痕模式：四层纵深防御，零痕迹残留 |
+| [incognito-mode](skills/incognito-mode/) | v2.6.2 | 无痕模式：四层纵深防御，零痕迹残留 |
 
 ## 许可
 

@@ -1,8 +1,8 @@
 ---
 name: incognito-mode
-description: "Incognito v2.6.1: sandboxed privacy, log redaction, audit."
-version: 2.6.1
-author: 幻灭文学出版社 + Hermes (19-round cross-audited, process audit degraded, cache+tmp+subagent gaps closed)
+description: "Incognito v2.6.2: sandboxed privacy, log redaction, audit."
+version: 2.6.2
+author: 幻灭文学出版社 + Hermes (20-round cross-audited, process audit degraded, cache+tmp+subagent gaps closed)
 license: MIT
 platforms: [linux, macos]
 metadata:
@@ -10,11 +10,11 @@ metadata:
     tags: [privacy, session, cleanup, ephemeral, sandbox, isolation]
 ---
 
-# 无痕模式 (Incognito Mode) v2.6.1
+# 无痕模式 (Incognito Mode) v2.6.2
 
 浏览器无痕模式的 Hermes 升级版。**四层纵深防御**（Skill 策略 → Runtime 护栏 → Framework 支持 → OS 隔离），确保会话结束后无持久痕迹残留。
 
-> **设计原则**：v1.0「事后擦除」→ v2.0「事前隔离」→ v2.1「事前隔离 + 事后全量反向审计」→ v2.2+「稳健性硬化」→ v2.5+「对照真实架构深度审计修复（R4-R10：时间戳窗口日志清洗、delegation/async_delegations 审计、向量索引哨兵、RedactingFilter 插件、bash 单引号安全）」→ v2.6.0「R11 双缺陷修复（4.9r 异常关闭补救协议 + serve 后端插件加载核心 patch）」→ v2.6.1「R12 实测缺陷修复（裸 URL 正则 + 敏感域全文件清扫 + 并行进程 skill 固化审计 + Phase 5 窗口外残留提示）」。完整版本 Changelog 见仓库 README。**不信任 Phase 2 的隔离完美无缺——发现痕迹 → 报告 → 清除 → 二次验证。**
+> **设计原则**：v1.0「事后擦除」→ v2.0「事前隔离」→ v2.1「事前隔离 + 事后全量反向审计」→ v2.2+「稳健性硬化」→ v2.5+「对照真实架构深度审计修复（R4-R10：时间戳窗口日志清洗、delegation/async_delegations 审计、向量索引哨兵、RedactingFilter 插件、bash 单引号安全）」→ v2.6.0「R11 双缺陷修复（4.9r 异常关闭补救协议 + serve 后端插件加载核心 patch）」→ v2.6.1「R12 实测缺陷修复（裸 URL 正则 + 敏感域全文件清扫 + 并行进程 skill 固化审计 + Phase 5 窗口外残留提示）」→ v2.6.2「R13 双轨复检（agy 独立审查）10 项修复：LogFilter 挂 root handlers（原挂 root logger 自身→子 logger 全量静默失效）、4.9r 去 bash -c 嵌套、URL 链式替换、index_all 哨兵跳过 sessions 源、4.6b-2 占位符检测、章节编号修正（4.1c/4.6c 顺序）、R11 根因重定位（serve 插件本会加载，删除多余 patch）」。完整版本 Changelog 见仓库 README。**不信任 Phase 2 的隔离完美无缺——发现痕迹 → 报告 → 清除 → 二次验证。**
 > ⚡ **三条铁律（每次行动前自检）**：
 > 1. **每条 terminal 命令** → 前缀 `HISTFILE=/dev/null HISTSIZE=0`，无一例外。**复合语句（`if`/`for`/`while`/`case`）必须用 `bash -c '...'` 包装**——直接前缀 `HISTFILE=/dev/null if ...` 会导致 bash 语法错误
 > 2. **从 Phase 2 到 Phase 4** → 必须经过 Phase 3 用户确认门禁，不得跳跃。（TTL 自动销毁需 Framework L2 支持，见 §7）
@@ -26,7 +26,7 @@ metadata:
 
 激活时 Agent 必须向用户展示：
 
-> 🔒 **无痕模式 v2.6.1 已激活**
+> 🔒 **无痕模式 v2.6.2 已激活**
 >
 > **本技能保护范围**：不写持久记忆、所有临时文件在 PID 隔离沙箱中、Shell History 被拦截、禁止 `/compress` 会话摘要落盘（仅保留在内存）、退出时安全覆写擦除。
 >
@@ -178,19 +178,15 @@ Agent **第一条回复**必须执行：
    HISTFILE=/dev/null HISTSIZE=0; echo "session=${HERMES_SESSION_ID:-unknown} created=$(date +%s)" > /tmp/.hermes-incognito-active
    ```
 
-3.6. **Logging RedactingFilter 插件检查（v2.6.0 环境感知升级，R11 根因实证）**：
+3.6. **Logging RedactingFilter 插件检查（v2.6.2 修正，R13 根因重定位）**：
    确认 `$INCOGNITO_HERMES_HOME/plugins/incognito-log-filter/` 存在且启用——它是"事前拦截"第一层防线（哨兵门控 + 内存脱敏，明文不落盘），缺失时仅剩 4.6b 事后擦除。**软警告不阻塞**（Phase 4 照常执行）。
-   > 🔴 **R11 实证（2026-08-01）**：`serve` 后端（desktop 的 backend）启动时 `_plugin_cli_discovery_needed()` 对内置子命令返回 False → `discover_plugins()` 从不执行 → **用户插件在 serve/gateway 模式完全不加载**（filter 永不挂载，无痕期间明文照常落盘）。Hermes 核心修复前，本检查必须同时判定**运行环境**：
+   > 🔴 **R13 根因重定位（2026-08-02）**：R11 曾判定「serve 后端不加载用户插件」——**判定错误**：`cmd_dashboard` 原本就有 `discover_plugins()`（main.py:10401），插件在 serve/desktop 环境**正常加载**。真正的失效根因是插件把 Filter 挂在了 root logger 自身（`root.addFilter`）——Python logging 的 Filter 不随日志传播，子 logger 的 record 只经过 root 的 **Handler 的 filter**——已修复（v2.6.2：挂到 root 的所有 handlers）。本检查保持简洁：
    ```bash
    HISTFILE=/dev/null HISTSIZE=0 bash -c '
-   # 环境感知：检测当前进程是否为 serve/gateway 后端（此类进程不加载用户插件）
-   PROC_ENV=$(ps -eo args | grep -E "hermes_cli\.main (serve|gateway)" | grep -v grep | head -1)
-   if [ -n "$PROC_ENV" ]; then
-     echo "⚠️ 当前环境为 serve/gateway 后端——用户插件不加载（Hermes main.py _plugin_cli_discovery_needed 设计取舍），filter 未生效，本次会话仅 4.6b 事后擦除兜底。核心修复见 §7"
-   elif [ -f "$INCOGNITO_HERMES_HOME/plugins/incognito-log-filter/plugin.yaml" ]; then
+   if [ -f "$INCOGNITO_HERMES_HOME/plugins/incognito-log-filter/plugin.yaml" ]; then
      STATUS=$(hermes plugins list 2>/dev/null | grep "incognito-log-filter" | grep -c "enabled")
      if [ "$STATUS" -gt 0 ]; then
-       echo "✅ incognito-log-filter 已启用（CLI/TUI 环境，register 在进程启动时执行）"
+       echo "✅ incognito-log-filter 已启用（v2.6.2 起挂载到 root handlers，子 logger 全链路脱敏）"
      else
        echo "⚠️ incognito-log-filter 已安装但未启用 → 执行: hermes plugins enable incognito-log-filter"
      fi
@@ -423,38 +419,6 @@ except Exception as e:
 - `ON FAILURE`: DB 锁/只读 → 标记 ⚠️，报告。
 - `REPORT` & `CONTINUE`
 
-##### 4.1c interrupted_turns.json 审计（v2.5.6，R7）
-desktop/TUI 的自动续跑标记（`tui_gateway/turn_marker.py`）：回合开始写 `{session_id, prompt}` 明文，回合正常结束清除，**进程死亡才残留**。无痕会话崩溃时 prompt 明文留此文件（`$INCOGNITO_HERMES_HOME/desktop/interrupted_turns.json`，24h 过期）。按 sid 精确清理无痕会话条目：
-```bash
-python3 -c '
-import os, json
-
-sid = os.environ.get("HERMES_SESSION_ID", "")
-hermes_home = os.environ.get("INCOGNITO_HERMES_HOME", os.path.expanduser("~/.hermes"))
-marker = os.path.join(hermes_home, "desktop", "interrupted_turns.json")
-if not os.path.isfile(marker):
-    print("\u2705 \u65e0 interrupted_turns.json\uff0c\u8df3\u8fc7")
-    exit(0)
-with open(marker, encoding="utf-8") as f:
-    data = json.load(f)
-if not isinstance(data, dict):
-    print("\u26a0\ufe0f marker \u683c\u5f0f\u5f02\u5e38\uff0c\u8df3\u8fc7")
-    exit(0)
-if sid and sid in data:
-    del data[sid]
-    with open(marker, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    print("\u2705 \u5df2\u5220\u9664\u65e0\u75d5\u4f1a\u8bdd\u6761\u76ee: " + sid)
-elif sid:
-    print("\u2705 marker \u4e2d\u65e0\u672c\u4f1a\u8bdd\u6761\u76ee\uff0c\u8df3\u8fc7")
-else:
-    print("\u26a0\ufe0f \u65e0 HERMES_SESSION_ID\uff0c\u65e0\u6cd5\u7cbe\u786e\u5339\u914d\u2014\u2014\u5982\u5d29\u6e83\u6b8b\u7559\u8bf7\u624b\u52a8\u68c0\u67e5 " + marker)
-'
-```
-- `TRY`: 按 sid 删除条目（key 即 session_id，零误伤）。
-- `ON FAILURE`: 文件被占用/格式异常 → 跳过，报告。
-- `REPORT` & `CONTINUE`
-
 ##### 4.1b `/tmp/` 根目录审计 — 沙箱外写入检测
 Phase 2 规则要求所有文件写入必须在 `$INCOGNITO_TMP_DIR` 内，但 Phase 4 的设计原则是**不信任 Phase 2**。此补充审计扫描 `/tmp/` 根目录（非沙箱路径），检测是否有绕过沙箱的泄漏写入：
 ```bash
@@ -468,6 +432,38 @@ find /tmp -maxdepth 1 -newer "$INCOGNITO_TMP_DIR/pid.lock" \
 - `FALLBACK`: `rm -f <file>`。
 - `REPORT`: 记录已清除路径，区分「hermes-snap（已覆写）」和「其他泄漏文件」。
 - `CONTINUE`: 继续下一步。
+
+##### 4.1c interrupted_turns.json 审计（v2.5.6，R7；v2.6.2 移至 4.1b 后，R13 编号修正）
+desktop/TUI 的自动续跑标记（`tui_gateway/turn_marker.py`）：回合开始写 `{session_id, prompt}` 明文，回合正常结束清除，**进程死亡才残留**。无痕会话崩溃时 prompt 明文留此文件（`$INCOGNITO_HERMES_HOME/desktop/interrupted_turns.json`，24h 过期）。按 sid 精确清理无痕会话条目：
+```bash
+python3 -c '
+import os, json
+
+sid = os.environ.get("HERMES_SESSION_ID", "")
+hermes_home = os.environ.get("INCOGNITO_HERMES_HOME", os.path.expanduser("~/.hermes"))
+marker = os.path.join(hermes_home, "desktop", "interrupted_turns.json")
+if not os.path.isfile(marker):
+    print("✅ 无 interrupted_turns.json，跳过")
+    exit(0)
+with open(marker, encoding="utf-8") as f:
+    data = json.load(f)
+if not isinstance(data, dict):
+    print("⚠️ marker 格式异常，跳过")
+    exit(0)
+if sid and sid in data:
+    del data[sid]
+    with open(marker, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    print("✅ 已删除无痕会话条目: " + sid)
+elif sid:
+    print("✅ marker 中无本会话条目，跳过")
+else:
+    print("⚠️ 无 HERMES_SESSION_ID，无法精确匹配——如崩溃残留请手动检查 " + marker)
+'
+```
+- `TRY`: 按 sid 删除条目（key 即 session_id，零误伤）。
+- `ON FAILURE`: 文件被占用/格式异常 → 跳过，报告。
+- `REPORT` & `CONTINUE`
 
 #### 4.2 Shell History 审计
 检查并清除本会话期间的命令历史记录。（注：`sed` 仅清理含 `hermes-incognito` 字面量的行——覆盖范围受限于标记字符串。真正的防线是 Phase 2 每条命令强制 `HISTFILE=/dev/null` 前缀，确保命令不进入 history；此处 `sed` 为冗余安全网。）
@@ -618,36 +614,6 @@ git config --global --list 2>/dev/null | head -10
 - `FALLBACK`: 报告变更文件和行号，提示手动编辑。
 - `REPORT` & `CONTINUE`
 
-#### 4.6c hermes-snap 二次清除（v2.5.3，R4 审计 P1-4）
-> ⚠️ **再生悖论**：Hermes 每次 `terminal()` 执行后都会重写 `/tmp/hermes-snap-<env_id>.sh`（含环境变量明文，可能含 API key 等敏感凭据）——4.1b 清除的存量会在后续命令执行时**再次产生**。此步骤在 4.6（unset 敏感变量）之后、Phase 5 报告前执行，尽量缩小暴露窗口。
-```bash
-find /tmp -maxdepth 1 -name "hermes-snap-*.sh" -newer "$INCOGNITO_TMP_DIR/pid.lock" 2>/dev/null | while read f; do python3 -c '
-import os, sys
-def wipe(fp):
-    try:
-        if os.path.islink(fp): os.unlink(fp); return
-        os.chmod(fp, 0o600)
-        sz = os.path.getsize(fp)
-        if sz > 0:
-            with open(fp, "rb+", buffering=0) as fh:
-                import os as _os
-                fd = fh.fileno(); fh.seek(0); remaining = sz
-                while remaining > 0:
-                    c = min(65536, remaining); w = fh.write(_os.urandom(c))
-                    if w == 0: break
-                    remaining -= w
-                fh.flush(); _os.fsync(fd); fh.seek(0); fh.truncate(0); fh.flush(); _os.fsync(fd)
-        os.unlink(fp)
-    except Exception:
-        try: os.unlink(fp)
-        except Exception: pass
-wipe(sys.argv[1])
-' "$f"; done 2>/dev/null || true
-```
-- `TRY`: 覆写 + 删除 Phase 4 期间产生的 snap。
-- `REPORT`: 记录清除数量。⚠️ **已知降级**：本清除命令自身执行后 Hermes 会再写一次 snap——此残留 snap 内容 = 清除时刻环境（此时 INCOGNITO 变量已 unset、Phase 4 审计已结束），暴露窗口最小化。**根治需框架支持 `[Framework L2]`**（execute 后不重写快照）。
-- `CONTINUE`
-
 #### 4.6b agent.log 搜索查询清洗
 利用 Linux `O_APPEND` 特性：Hermes 以追加模式打开 agent.log，外部进程在会话结束后按行清洗本会话之后的 `web_search` 日志行，原地替换查询明文为 `[REDACTED_INCOGNITO_QUERY]` 后 `truncate`。主进程后续写入自动对齐新 EOF——不会产生空洞或文件损坏。同步清洗轮转日志 `agent.log.1` 至 `agent.log.3`。
 
@@ -736,12 +702,19 @@ def clean_log(path):
             elif t_m:
                 lines[i] = turn_re.sub(turn_repl, ln)
                 hits += 1
-            elif url_re.search(ln):
-                lines[i] = url_re.sub(url_repl, ln)
-                hits += 1
-            elif bare_url_re.search(ln):
-                lines[i] = bare_url_re.sub(bare_url_repl, ln)
-                hits += 1
+            # v2.6.2 修正（R13 审查 ISSUE-3）：URL 两个分支不能 elif 互斥——同一行可能同时
+            # 含引号包裹 URL 与裸 URL，互斥会导致裸 URL 漏洗。改为链式替换。
+            else:
+                modified = False
+                if url_re.search(ln):
+                    ln = url_re.sub(url_repl, ln)
+                    modified = True
+                if bare_url_re.search(ln):
+                    ln = bare_url_re.sub(bare_url_repl, ln)
+                    modified = True
+                if modified:
+                    lines[i] = ln
+                    hits += 1
         if hits:
             f.seek(0)
             f.writelines(lines)
@@ -772,11 +745,11 @@ import os, re
 
 # 敏感域清单：从本会话 web 活动提取（Agent 执行时按实际命中的站点域填入，用 | 连接）
 # ⚠️ 域名字符串禁止含单引号（bash 单引号包裹，R10 教训）——用双引号或 \\x27 转义
-# v2.6.1: 独立标志——Agent 填入真实域后改为 True（避免误判占位符）
-DOMAINS_PROVIDED = False
+# v2.6.2 修正（R13 审查 ISSUE-5）：占位符检测替代 DOMAINS_PROVIDED 标志——Agent 只需
+# 替换域名本身，无需记得改第二处标志（原标志方案 Agent 原样复制会静默跳过）
 sensitive_domains = r"example_site_a|example_site_b"
-if not DOMAINS_PROVIDED:
-    print("⚠️ 未提供敏感域清单——跳过全文件清扫（Agent 应从会话 web 活动提取站点域后重跑）")
+if "example_site_a" in sensitive_domains:
+    print("⚠️ 未提取实际敏感域（仍为占位符）——跳过全文件清扫（Agent 应从会话 web 活动提取站点域后重跑）")
     exit(0)
 
 # 全文件清扫：不依赖时间戳行（覆盖多行 JSON 等无前缀行），幂等
@@ -805,6 +778,36 @@ for name in ["agent.log", "agent.log.1", "agent.log.2", "agent.log.3"]:
 - `TRY`: Agent 从本会话 web 活动（web_search/web_extract 结果中的站点域）提取域名 → 填入 `sensitive_domains` → 执行全文件清扫。
 - `ON FAILURE`: 域清单为空 → 跳过并报告（不阻塞——4.6b 已覆盖时间戳行）。
 - `REPORT` & `CONTINUE`
+
+#### 4.6c hermes-snap 二次清除（v2.5.3，R4 审计 P1-4）
+> ⚠️ **再生悖论**：Hermes 每次 `terminal()` 执行后都会重写 `/tmp/hermes-snap-<env_id>.sh`（含环境变量明文，可能含 API key 等敏感凭据）——4.1b 清除的存量会在后续命令执行时**再次产生**。此步骤在 4.6（unset 敏感变量）之后、Phase 5 报告前执行，尽量缩小暴露窗口。
+```bash
+find /tmp -maxdepth 1 -name "hermes-snap-*.sh" -newer "$INCOGNITO_TMP_DIR/pid.lock" 2>/dev/null | while read f; do python3 -c '
+import os, sys
+def wipe(fp):
+    try:
+        if os.path.islink(fp): os.unlink(fp); return
+        os.chmod(fp, 0o600)
+        sz = os.path.getsize(fp)
+        if sz > 0:
+            with open(fp, "rb+", buffering=0) as fh:
+                import os as _os
+                fd = fh.fileno(); fh.seek(0); remaining = sz
+                while remaining > 0:
+                    c = min(65536, remaining); w = fh.write(_os.urandom(c))
+                    if w == 0: break
+                    remaining -= w
+                fh.flush(); _os.fsync(fd); fh.seek(0); fh.truncate(0); fh.flush(); _os.fsync(fd)
+        os.unlink(fp)
+    except Exception:
+        try: os.unlink(fp)
+        except Exception: pass
+wipe(sys.argv[1])
+' "$f"; done 2>/dev/null || true
+```
+- `TRY`: 覆写 + 删除 Phase 4 期间产生的 snap。
+- `REPORT`: 记录清除数量。⚠️ **已知降级**：本清除命令自身执行后 Hermes 会再写一次 snap——此残留 snap 内容 = 清除时刻环境（此时 INCOGNITO 变量已 unset、Phase 4 审计已结束），暴露窗口最小化。**根治需框架支持 `[Framework L2]`**（execute 后不重写快照）。
+- `CONTINUE`
 
 #### 4.7 Git / 项目目录审计
 在项目根目录（若有）检查未提交变更。若当前不在 Git 仓库中，此步自动跳过。
@@ -894,7 +897,7 @@ if tmp_dir and os.path.exists(tmp_dir) and tmp_dir.startswith("/tmp/hermes-incog
         print("✅ 沙箱安全覆写并物理擦除")
     except Exception as e:
         print(f"⚠️ 沙箱目录删除失败: {e}")
-' 2>/dev/null || (find "$INCOGNITO_TMP_DIR" -type f -exec shred -u -n 1 {} + 2>/dev/null; rm -rf "$INCOGNITO_TMP_DIR")
+' 2>/dev/null || ( [ -n "$INCOGNITO_TMP_DIR" ] && find "$INCOGNITO_TMP_DIR" -type f -exec shred -u -n 1 {} + 2>/dev/null; [ -n "$INCOGNITO_TMP_DIR" ] && rm -rf "$INCOGNITO_TMP_DIR" ) || echo "⚠️ 无 INCOGNITO_TMP_DIR（变量丢失），跳过降级擦除——沙箱可能已不存在"
 ```
 
 > ⚠️ **包装规则**：此 Python 脚本使用单引号包裹（`python3 -c '...'`）。执行时**直接前缀** `HISTFILE=/dev/null HISTSIZE=0` 即可，**切勿**套 `bash -c '...'` 外层——外层单引号会与脚本内单引号冲突导致语法错误。
@@ -931,15 +934,17 @@ echo "恢复对象: session=$SID created=$CREATED"
 mkdir -p /tmp/hermes-incognito-recovery && echo "created=$CREATED session=$SID" > /tmp/hermes-incognito-recovery/pid.lock
 
 # 3. 以无痕 sid 身份重跑 4.6b（幂等——重复清洗无害）
-INCOGNITO_TMP_DIR=/tmp/hermes-incognito-recovery INCOGNITO_HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}" HERMES_SESSION_ID=$SID bash -c '<4.6b 代码块>'
+#    ⚠️ v2.6.2 修正（R13 审查 ISSUE-2）：4.6b 代码块本身是 python3 -c '...'（bash 单引号包裹），
+#    外层不能再套 bash -c '...'（引号嵌套爆炸）——直接前缀环境变量调用 python3
+INCOGNITO_TMP_DIR=/tmp/hermes-incognito-recovery INCOGNITO_HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}" HERMES_SESSION_ID=$SID python3 -c '<4.6b Python 代码>'
 
 # 4. 清理恢复沙箱 + 哨兵
 rm -rf /tmp/hermes-incognito-recovery && rm -f /tmp/.hermes-incognito-active
 
-# 5. 验证：关键词 0 命中
-grep -a -c '<关键词>' ~/.hermes/logs/agent.log
+# 5. 验证：关键词 0 命中（profile-safe：用 $INCOGNITO_HERMES_HOME）
+grep -a -c '<关键词>' "$INCOGNITO_HERMES_HOME/logs/agent.log"
 ```
-- 4.6b 代码块即上文 `#### 4.6b` 的完整 bash 代码（从 SKILL.md 提取执行）。
+- 4.6b Python 代码即上文 `#### 4.6b` 的 `python3 -c '...'` 内层 Python 脚本（外层 bash 围栏与 `python3 -c '` 包装剥离后执行）。
 - 若 session 未删（仍在 state.db）→ 不适用本协议（会话可能仍在运行），先确认会话状态。
 - 补救后向量索引 cron 自动恢复正常（哨兵已清 + session 已删，双重释放）。
 
@@ -962,7 +967,7 @@ grep -a -c '<关键词>' ~/.hermes/logs/agent.log
 
 Agent 汇总 Phase 4 的 10 步审计结果：
 
-> 🧹 **无痕模式结束 — 全量审计报告 (v2.6.1)**
+> 🧹 **无痕模式结束 — 全量审计报告 (v2.6.2)**
 >
 > | 审计项 | 状态 | 详情 |
 > |------|:--:|------|
@@ -1115,7 +1120,7 @@ Phase 4 物理擦除时，主代理通过递归遍历擦除 `$INCOGNITO_TMP_DIR`
 - [ ] **`[Framework L2]` TTL Auto-Destroy Timer**：宿主框架提供外部 Timer，Phase 3 超时后自动触发 Phase 4 销毁（LLM Agent 不具备自发唤醒能力）
 - [ ] **`[Framework L2]` Execute No-Snapshot Flag**：`terminal()` 支持跳过命令后重写环境快照（`/tmp/hermes-snap-*.sh`），从根上消除 4.6c 的再生降级（v2.5.3 新增）
 - [ ] **`[Framework L2]` Logging RedactingFilter 原生支持**（v2.5.6 更新）：**已通过用户插件落地**（`~/.hermes/plugins/incognito-log-filter/`，哨兵门控 + 内存脱敏，明文不落盘）。框架原生支持（无插件依赖、无需哨兵文件轮询）仍列为可选优化；当前插件方案与 skill 4.6b 事后擦除构成双层防御
-- [ ] **`[Framework L2]` serve/dashboard 后端加载用户插件**（v2.6.0 新增，R11 根因）：`_plugin_cli_discovery_needed()` 对内置子命令返回 False → serve/gateway 从不加载用户插件（hooks/tools/filter 全失效）。**已本地 patch**（`hermes_cli/main.py` cmd_dashboard 显式 `discover_plugins()`，16 行）——待上游合并；`hermes update` 后需重新应用或依赖上游版本
+- [ ] **`[Framework L2]` 插件 Filter 挂载便捷化**（v2.6.2 更新，R13 根因）：Python logging 的 Filter 不随日志传播——插件必须把 Filter 挂到 root 的所有 handlers（v2.6.1 曾误挂 root logger 自身导致全量静默失效，已修复）。框架若提供"插件日志过滤器注册"API（自动挂 handlers），可避免此类低级错误。~~R11 曾本地 patch cmd_dashboard 显式 discover_plugins——经 R13 核实为多余（main.py:10401 原有调用已覆盖），已删除~~
 - [ ] **`[Framework L2]` Ephemeral Session Store**：内存型 Session 引擎，绕过 SQLite WAL 日志和 `.sqlite` 物理文件
 - [ ] **`[Framework L2]` Auto-mount tmpfs**：启动无痕模式时自动挂载 `/dev/shm/hermes-session-<ID>/`，OS 关机/进程终止时物理消失
 - [ ] **`[Framework L2]` CLI Flag `hermes --incognito`**：框架原生无痕模式，自动禁用 Checkpoint、Transcript 归档、RAG 向量索引

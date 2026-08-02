@@ -128,6 +128,15 @@ Then start a **new session** (`/new`) to ensure the old session container is ful
 - **Parallel skill-freeze audit (4.4)** — concurrent processes/curator can persist session knowledge into skills mid-session; dual-criteria (mtime window + content relevance) detection + precise rollback
 - **Phase 5 out-of-window residue line** — reports historical plaintext outside the 4.6b window for user-confirmed manual scrub
 
+### v2.6.2
+- **LogFilter mount fix (CRITICAL)** — Python logging Filters don't propagate: root-logger filters never see child-logger records; filter now mounts to all root *handlers* (field-verified 6/6 on turn_context/web_tools/firecrawl/tool_executor)
+- **4.9r quote-nesting fix** — recovery step dropped the outer `bash -c` wrapper (inner `python3 -c '...'` would break bash quoting)
+- **Chained URL scrub (4.6b)** — url_re + bare_url_re no longer mutually exclusive; mixed-quote lines fully scrubbed
+- **index_all.py sessions skip** — sentinel-active now also skips the `sessions` (.jsonl) source, not just active_sessions
+- **4.6b-2 placeholder detection** — replaces the DOMAINS_PROVIDED flag (silent-skip hazard)
+- **Section ordering** — 4.1c moved after 4.1b; 4.6c after 4.6b-2
+- **R11 root-cause relocation** — serve backend DOES load plugins (cmd_dashboard already called discover_plugins); the redundant 16-line patch was removed; real root cause was the filter mount point
+
 ## Changelog
 
 ### v2.5.9

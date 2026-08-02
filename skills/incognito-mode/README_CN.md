@@ -154,6 +154,15 @@ Agent 随后会执行：
 - **并行 skill 固化审计（4.4）** — 并行进程/curator 会话中把会话知识固化进持久 skill；双重判定（mtime 窗口 + 内容相关性）+ 精确回滚
 - **Phase 5 窗口外残留提示行** — 报告 4.6b 窗口外的历史明文，供用户确认后手动清扫
 
+### v2.6.2
+- **LogFilter 挂载修复（致命）** — Python logging 的 Filter 不随日志传播：挂 root logger 自身对子 logger 全量无效；现挂到 root 所有 handlers（子 logger 全链路模拟 6/6 验证）
+- **4.9r 引号嵌套修复** — 补救步骤去掉外层 bash -c（内层 python3 -c 会破坏 bash 引号）
+- **URL 链式清洗（4.6b）** — url_re 与 bare_url_re 不再互斥，混合引号行全量清洗
+- **index_all.py sessions 跳过** — 哨兵激活时同时跳过 sessions(.jsonl) 源（原只跳 active_sessions）
+- **4.6b-2 占位符检测** — 替代 DOMAINS_PROVIDED 标志（静默跳过隐患）
+- **章节排序** — 4.1c 移至 4.1b 后；4.6c 移至 4.6b-2 后
+- **R11 根因重定位** — serve 后端本会加载插件（cmd_dashboard 原有 discover_plugins）；删除多余 16 行 patch；真正根因是 filter 挂载位置
+
 ## 更新日志
 
 ### v2.5.9
