@@ -1,4 +1,4 @@
-# 🔒 Hermes Incognito Mode v2.5.9
+# 🔒 Hermes Incognito Mode v2.6.3
 
 [中文版 (Chinese)](README_CN.md) | [English](README.md)
 
@@ -116,31 +116,6 @@ The agent will then:
 > 💡 **15-minute TTL reminder**: if you walk away mid-session, the agent will prompt you to end it after 15 minutes of inactivity. Auto-destruction requires `[Framework L2]` support (see §Limitations in [README_CN.md](README_CN.md)).
 
 Then start a **new session** (`/new`) to ensure the old session container is fully purged.
-
-### v2.6.0
-- **4.9r recovery protocol** — abnormal-close recovery: sentinel residue + session deleted → re-run 4.6b idempotently (field-tested: 16 plaintext lines scrubbed)
-- **Env-aware plugin check (3.6)** — serve/gateway backends never load user plugins (`_plugin_cli_discovery_needed` skips built-ins); check now detects the runtime env
-- **Hermes core patch** — cmd_dashboard explicitly calls `discover_plugins()` so desktop/serve loads user plugins (16 lines, pending upstream merge)
-
-### v2.6.1
-- **Bare-URL scrub (4.6b)** — R12: `Firecrawl scraping:`/`tools.web_tools:` lines carry bare URLs (no quotes); new `bare_url_re` covers them in the time window
-- **Domain-wide full-file scrub (4.6b-2)** — multi-line JSON tool-error logs (`"url": ...` on timestamp-less continuation lines) now scrubbed by sensitive-domain regex over the whole log file (idempotent, `DOMAINS_PROVIDED` flag)
-- **Parallel skill-freeze audit (4.4)** — concurrent processes/curator can persist session knowledge into skills mid-session; dual-criteria (mtime window + content relevance) detection + precise rollback
-- **Phase 5 out-of-window residue line** — reports historical plaintext outside the 4.6b window for user-confirmed manual scrub
-
-### v2.6.2
-- **LogFilter mount fix (CRITICAL)** — Python logging Filters don't propagate: root-logger filters never see child-logger records; filter now mounts to all root *handlers* (field-verified 6/6 on turn_context/web_tools/firecrawl/tool_executor)
-- **4.9r quote-nesting fix** — recovery step dropped the outer `bash -c` wrapper (inner `python3 -c '...'` would break bash quoting)
-- **Chained URL scrub (4.6b)** — url_re + bare_url_re no longer mutually exclusive; mixed-quote lines fully scrubbed
-- **index_all.py sessions skip** — sentinel-active now also skips the `sessions` (.jsonl) source, not just active_sessions
-- **4.6b-2 placeholder detection** — replaces the DOMAINS_PROVIDED flag (silent-skip hazard)
-- **Section ordering** — 4.1c moved after 4.1b; 4.6c after 4.6b-2
-- **R11 root-cause relocation** — serve backend DOES load plugins (cmd_dashboard already called discover_plugins); the redundant 16-line patch was removed; real root cause was the filter mount point
-
-### v2.6.3
-- **Fully chained scrub (4.6b)** — query/sb/turn replacement and URL scrub no longer mutually exclusive; URL cleaning runs unconditionally (row_changed merged counting, one hit per row max)
-- **Doc sync** — capability matrix + Phase 4 overview updated for the v2.6.2 sentinel semantics (active_sessions + sessions)
-- **R14 field verification** — filter mount timing proven (setup_logging runs at module level before plugin register), register idempotency proven, pid.lock format consistency confirmed
 
 ## Changelog
 

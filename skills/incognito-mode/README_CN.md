@@ -1,4 +1,4 @@
-# 🔒 Hermes 无痕模式 v2.5.9
+# 🔒 Hermes 无痕模式 v2.6.3
 
 > 浏览器无痕模式的 AI Agent 升级版。四层纵深防御，零痕迹残留。
 
@@ -142,31 +142,6 @@ Agent 随后会执行：
 | Qubes OS | VM 级隔离 | 最强隔离性 | 硬件要求高，学习曲线陡 |
 
 **推荐组合**：本 Skill（Agent 层）+ 私有化模型 Ollama（API 层）+ `swapoff -a`（OS 层）= 接近 Tails 级别的隐私保护，同时保持日常开发便利性。
-
-### v2.6.0
-- **4.9r 异常关闭补救协议** — 哨兵残留 + session 已删 → 幂等重跑 4.6b（现场实证：16 条明文清洗成功）
-- **3.6 环境感知检查** — serve/gateway 后端不加载用户插件（`_plugin_cli_discovery_needed` 跳过内置命令），检查现按运行环境判定
-- **Hermes 核心 patch** — cmd_dashboard 显式 `discover_plugins()`，desktop/serve 可加载用户插件（16 行，待上游合并）
-
-### v2.6.1
-- **裸 URL 清扫（4.6b）** — R12 实测：`Firecrawl scraping:`/`tools.web_tools:` 行是裸 URL（无引号），新增 `bare_url_re` 覆盖时间窗口
-- **敏感域全文件清扫（4.6b-2）** — 多行 JSON 工具错误日志（无时间戳续行的 `"url": ...`）用敏感域正则全文清扫（幂等，`DOMAINS_PROVIDED` 标志）
-- **并行 skill 固化审计（4.4）** — 并行进程/curator 会话中把会话知识固化进持久 skill；双重判定（mtime 窗口 + 内容相关性）+ 精确回滚
-- **Phase 5 窗口外残留提示行** — 报告 4.6b 窗口外的历史明文，供用户确认后手动清扫
-
-### v2.6.2
-- **LogFilter 挂载修复（致命）** — Python logging 的 Filter 不随日志传播：挂 root logger 自身对子 logger 全量无效；现挂到 root 所有 handlers（子 logger 全链路模拟 6/6 验证）
-- **4.9r 引号嵌套修复** — 补救步骤去掉外层 bash -c（内层 python3 -c 会破坏 bash 引号）
-- **URL 链式清洗（4.6b）** — url_re 与 bare_url_re 不再互斥，混合引号行全量清洗
-- **index_all.py sessions 跳过** — 哨兵激活时同时跳过 sessions(.jsonl) 源（原只跳 active_sessions）
-- **4.6b-2 占位符检测** — 替代 DOMAINS_PROVIDED 标志（静默跳过隐患）
-- **章节排序** — 4.1c 移至 4.1b 后；4.6c 移至 4.6b-2 后
-- **R11 根因重定位** — serve 后端本会加载插件（cmd_dashboard 原有 discover_plugins）；删除多余 16 行 patch；真正根因是 filter 挂载位置
-
-### v2.6.3
-- **完全链式清洗（4.6b）** — query/sb/turn 替换与 URL 清洗不再互斥，URL 无条件执行（row_changed 合并计数，一行最多 +1）
-- **文档同步** — 能力矩阵 + Phase 4 流程总览更新 v2.6.2 哨兵语义（active_sessions + sessions）
-- **R14 实证** — filter 挂载时机（setup_logging 模块级先于插件 register）、register 幂等、pid.lock 格式一致性
 
 ## 更新日志
 
