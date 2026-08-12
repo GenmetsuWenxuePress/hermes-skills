@@ -144,6 +144,31 @@ Then start a **new session** (`/new`) to ensure the old session container is ful
 
 ## Changelog
 
+### v2.6.3 (R14 challenge re-review)
+- **4.6b query/turn + URL scrub fully chained** — chained replacement now covers query and turn lines against URL scrubs (previously only internal URL mutual-exclusion was handled)
+- **Capability matrix / flow overview synced** — aligned to v2.6.2 sentinel semantics (index_all skips sessions source)
+- **Filter mount timing verified** — `setup_logging` runs before `register` (empirical)
+- **register idempotency verified** — repeated registration has no side effects
+
+### v2.6.2 (R13 dual-track re-review — agy independent audit, 10 fixes)
+- **LogFilter mount root-cause fix** — was attached to root logger itself (Filters don't propagate with records; child loggers silently never redacted), now mounted on all root handlers
+- **4.9r de-nested bash -c** — fixed nested-quote conflict
+- **Chained URL replacement** — mixed-quote lines fully scrubbed
+- **index_all sentinel skips sessions source** — not just active_sessions
+- **4.6b-2 placeholder detection** — prevents residual placeholder after scrub
+- **Section numbering fix** — 4.1c/4.6c ordering corrected
+- **R11 root-cause re-location** — serve backend does load user plugins; redundant patch removed
+
+### v2.6.1 (R12 field-tested fixes)
+- **Bare-URL regex** — Firecrawl scraping / tools.web_tools lines carry bare URLs (old regex 0-hit)
+- **4.6b-2 domain-wide full-file scrub** — timestamp-independent, idempotent over agent.log + rotated files
+- **Parallel-process skill-solidification audit** — prevents parallel processes/curator writing session knowledge into persistent skills mid-session
+- **Phase 5 out-of-window residue hint** — flags residue outside the time window
+
+### v2.6.0 (R11 dual-defect fixes)
+- **4.9r abnormal-shutdown recovery protocol** — remedial destruction flow for non-clean session exits
+- **serve-backend plugin-load core patch** (later re-located as misdiagnosis by R13, see v2.6.2)
+
 ### v2.5.9
 - **P0 fix: bash single-quote safety** — bare `'` inside 4.6b's `python3 -c '...'` (comments/`(["'])` regex) broke the bash wrapper and silently failed on real terminal runs — now chr()-concatenated; 30/30 bash blocks verified
 - **Release compliance** — description ≤60 chars, `platforms` field, generalized example wording
@@ -178,6 +203,8 @@ Then start a **new session** (`/new`) to ensure the old session container is ful
 ### v2.5.0
 - **Web cache symlink to sandbox** — `~/.hermes/cache/web/`, `screenshots/`, `videos/` symlinked into sandbox. Pre-hoc isolation replaces post-hoc wipe — crash-safe, no cache to clean up after a crash.
 - **Agent log keyword redaction** — `web_search` query plaintext in `agent.log` redacted to `[REDACTED]` by session ID on cleanup.
+
+### v2.4.1
 - **Terminal snapshot auto-wipe** — `hermes-snap-*.sh` files (contain plaintext command history + env vars) now included in forced secure wipe
 
 ### v2.4.0
@@ -186,6 +213,8 @@ Then start a **new session** (`/new`) to ensure the old session container is ful
 - **Process audit degraded** — acknowledged inherent limitation of Hermes `terminal()` model
 - **Phase 4 environment recovery** — auto-restore `$INCOGNITO_TMP_DIR` via `pid.lock` session matching if variable lost during long sessions
 - **Expanded pre-exclusion paths** — `.hermes/cache/`, `.local/state/tirith/` added to noise filter
+
+### v2.3.1
 - **Deduplicated session delete** — removed duplicate Phase 4.9 / Phase 5 `hermes sessions delete` instructions
 - **Phase 1 numbering fix** — corrected step numbering after v2.3.0 additions
 - **Generalized pre-exclusion paths** — broader path filtering in filesystem audit

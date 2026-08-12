@@ -170,6 +170,31 @@ Agent 随后会执行：
 
 ## 更新日志
 
+### v2.6.3（R14 质疑复检）
+- **4.6b query/turn 与 URL 清洗完全链式化** — 链式替换覆盖 query 与 turn 行（原只处理 URL 内部互斥）
+- **能力矩阵/流程总览同步** — 对齐 v2.6.2 哨兵语义（index_all 跳过 sessions 源）
+- **filter 挂载时机实证** — 确认 `setup_logging` 先于 `register` 执行
+- **register 幂等实证** — 重复注册不再产生副作用
+
+### v2.6.2（R13 双轨复检 — agy 独立审查，10 项修复）
+- **LogFilter 挂载根因修复** — 原挂在 root logger 自身（Filter 不随日志传播，子 logger 全量静默失效），改为挂到 root 的所有 handlers
+- **4.9r 去 bash -c 嵌套** — 修复嵌套引号冲突
+- **URL 链式替换** — 混合引号行全量清洗
+- **index_all 哨兵跳过 sessions 源** — 不只 active_sessions，sessions 源一并跳过
+- **4.6b-2 占位符检测** — 防止清洗后占位符残留
+- **章节编号修正** — 4.1c/4.6c 顺序调整
+- **R11 根因重定位** — 确认 serve 后端原本就加载用户插件，删除多余 patch
+
+### v2.6.1（R12 实测缺陷修复）
+- **裸 URL 正则** — Firecrawl scraping / tools.web_tools 行裸 URL 明文（旧正则 0 命中）
+- **4.6b-2 敏感域全文件清扫** — 不依赖时间戳行，对 agent.log 全文+轮转文件幂等清洗
+- **并行进程 skill 固化审计** — 防止并行进程/curator 在会话中把知识固化进持久 skill
+- **Phase 5 窗口外残留提示** — 提示时间窗口之外的残留可能性
+
+### v2.6.0（R11 双缺陷修复）
+- **4.9r 异常关闭补救协议** — 会话非正常关闭时的补救销毁流程
+- **serve 后端插件加载核心 patch**（后被 R13 重定位为误判，见 v2.6.2）
+
 ### v2.5.9
 - **P0 修复：bash 单引号安全** — 4.6b 代码内裸单引号（注释/正则 `(["'])`）会破坏 `python3 -c '...'` 的 bash 包裹，真实终端执行静默失败——改为 chr 拼接；30/30 bash 块全量验证通过
 - **发布合规** — description ≤60 字符、platforms 字段、通用化示例措辞
@@ -204,6 +229,8 @@ Agent 随后会执行：
 ### v2.5.0
 - **Web 缓存符号链接至沙箱** — `~/.hermes/cache/web/`、`screenshots/`、`videos/` 通过符号链接重定向至沙箱。事前隔离替代事后擦除——崩溃安全，即使意外退出也无残留缓存。
 - **Agent 日志关键词脱敏** — `agent.log` 中 `web_search` 查询明文在会话结束时按 session ID 精确清洗为 `[REDACTED]`。
+
+### v2.4.1
 - **终端快照自动覆写** — `hermes-snap-*.sh` 文件（含本会话全部命令明文+环境变量）纳入强制安全擦除
 
 ### v2.4.0
@@ -212,6 +239,8 @@ Agent 随后会执行：
 - **进程审计降级** — 承认 Hermes `terminal()` 模型的固有局限
 - **Phase 4 环境恢复** — 长时间会话中 `$INCOGNITO_TMP_DIR` 丢失时，通过 `pid.lock` 会话匹配自动恢复
 - **预排除路径扩展** — `.hermes/cache/`、`.local/state/tirith/` 加入噪音过滤
+
+### v2.3.1
 - **Phase 4.9/5 去重** — 删除重复的 `hermes sessions delete` 指令
 - **Phase 1 编号修复** — 修正 v2.3.0 新增步骤导致的编号错位
 - **预排除路径泛化** — 文件系统审计中更广泛的路径过滤
