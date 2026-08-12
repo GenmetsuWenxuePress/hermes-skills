@@ -2,7 +2,7 @@
 
 [中文版 (Chinese)](README_CN.md) | [English](README.md)
 
-> Browser incognito mode — upgraded for AI agents. Defense-in-depth, zero trace left.
+> ⚠️ **Test before real use.** This skill performs destructive operations (secure wipe, session destruction). Before using it with sensitive or real data, run a trial with non-sensitive information first to verify it works correctly in your environment.
 
 ## What is this?
 
